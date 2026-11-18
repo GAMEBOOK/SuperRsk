@@ -19,7 +19,7 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Group Swap** | Multiboxing with the LayerSwap addon: leave, swap layer, invite your characters back, they accept on their own. |
 | **Spy Ping** | With the Spy addon: click an enemy in the list to target and ping them for your group. Better enemy detection. |
 | **Honorable Kills** | Small movable widget with your honorable kills and your guild's ranking. |
-| **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 15 m). One press of your Interact key takes it. |
+| **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 20 m). One press of your Interact key takes it. |
 | **Boost FPS** | One click graphics settings for more FPS and a sharper picture. Your previous settings come back when you turn it off. |
 | **Weather and Fog** | Removes rain, snow, sandstorms and fog. |
 | **Tsquid Area** | Lightsaber sound on critical hits (off by default). |

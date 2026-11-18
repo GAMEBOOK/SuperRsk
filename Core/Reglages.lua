@@ -226,10 +226,10 @@ Reglages.MODULES = {
           libelle = L["Joueurs dans le classement"] },
     } },
     { nom = "softInteract", titre = L["Interaction rapide"], interrupteur = "softInteract",
-      desc = L["Comme dans SuperKili : le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête), jusqu'à 15 m (le maximum du jeu), avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
+      desc = L["Comme dans SuperKili : le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
       options = {
         { cle = "softInteract", type = "case", libelle = L["Viser les objets autour de moi"],
-          info = L["Ciblage souple sur 360°, 15 m, objets compris (même un peu hors de portée, comme le bouchon de pêche), icône et plaque au-dessus de l'objet visé. Sans touche « Interagir avec la cible », rien ne se prend : assigne-la dans Options > Raccourcis."] },
+          info = L["Ciblage souple sur 360°, 20 m, objets compris (bouchon de pêche aussi), icône au-dessus de l'objet visé. Sans touche « Interagir avec la cible », rien ne se prend : assigne-la dans Options > Raccourcis."] },
     } },
     { nom = "tsquid", titre = "Tsquid Area", interrupteur = "tsquidActif",
       boutons = { { texte = L["Écouter le son"], action = function()

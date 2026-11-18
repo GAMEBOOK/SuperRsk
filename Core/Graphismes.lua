@@ -45,21 +45,19 @@ Graphismes.GROUPES = {
     { nom = "spyPlaques", titre = L["Détection Spy"], tenir = true,
       actif = function() return R("spyDetection") == true and _G.Spy ~= nil end,
       cvars = { { "nameplateShowAll", "1" }, { "nameplateShowEnemies", "1" }, { "nameplateMaxDistance", "41" } } },
-    -- Interaction rapide (comme SuperKili et Lueur) : le ciblage souple vise
-    -- aussi les objets (filons, plantes, coffres, objets de quête) tout autour,
-    -- icône et plaque au-dessus ; la touche « Interagir avec la cible » les prend.
+    -- Interaction rapide : les réglages de SuperKili, validés en jeu sur
+    -- Forever. Le ciblage souple vise aussi les objets (filons, plantes,
+    -- coffres, objets de quête, bouchon de pêche) tout autour, sur 20 m, avec
+    -- une icône au-dessus ; la touche « Interagir avec la cible » les prend.
     -- SoftTargetIconGameObject à 1 est indispensable : à 0, le jeu ne vise pas
-    -- les objets et ne leur crée pas de plaque. Portée plafonnée à 15 m par le
-    -- jeu. OnlyInRange et RangeIsHard à 0 : un objet encore atteignable (le
-    -- bouchon de pêche) n'est pas écarté. Plaques d'objets visibles à 60 m
-    -- (« min » : une valeur plus grande du joueur est gardée).
+    -- les objets. SoftTargetNameplateInteract à 0 : à 1, l'icône part sur la
+    -- plaque de nom de l'objet, et les objets n'en ont pas sur Forever, donc
+    -- plus d'icône du tout (constaté le 18/11/2026).
     { nom = "softInteract", titre = L["Interaction rapide"], tenir = true,
       actif = function() return R("softInteract") == true end,
       cvars = { { "SoftTargetInteract", "3" }, { "SoftTargetInteractArc", "2" },
                 { "SoftTargetIconGameObject", "1" }, { "SoftTargetLowPriorityIcons", "1" },
-                { "SoftTargetInteractRange", "15" }, { "SoftTargetNameplateInteract", "1" },
-                { "SoftTargetInteractOnlyInRange", "0" }, { "SoftTargetInteractRangeIsHard", "0" },
-                { "nameplateGameObjectMaxDistance", "60", min = true } } },
+                { "SoftTargetInteractRange", "20" }, { "SoftTargetNameplateInteract", "0" } } },
     { nom = "brouillard", titre = L["Brouillard"], tenir = true,
       actif = function() return R("meteoActif") == true and R("sansBrouillard") ~= false end,
       cvars = { { "volumeFog", "0" }, { "volumeFogLevel", "0" } } },
