@@ -19,7 +19,7 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Group Swap** | Multiboxing with the LayerSwap addon: leave, swap layer, invite your characters back, they accept on their own. |
 | **Spy Ping** | With the Spy addon: click an enemy in the list to target and ping them for your group. Better enemy detection. |
 | **Honorable Kills** | Small movable widget with your honorable kills and your guild's ranking. |
-| **Quick Interact** | The game targets the nearest ore, herb, chest or quest object (up to 15 m) with an icon above it: one press of your Interact key takes it. |
+| **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 15 m). One press of your Interact key takes it. |
 | **Boost FPS** | One click graphics settings for more FPS and a sharper picture. Your previous settings come back when you turn it off. |
 | **Weather and Fog** | Removes rain, snow, sandstorms and fog. |
 | **Tsquid Area** | Lightsaber sound on critical hits (off by default). |
@@ -43,7 +43,7 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 
 **La boîte à outils maison de SuperRsk et ses potes pour WoW Forever.** Chaque module s'allume ou se coupe à part. Tape `/sg` en jeu pour le menu.
 
-Auto Equip (meilleur équipement pour ta classe et ta spécialisation), ramassage instantané, barre d'XP avec l'XP des quêtes, minuteur de tir auto et de baguette, mise à jour des rangs de sorts, points de vol sur la carte, interaction rapide (filons, plantes, coffres), marqueurs de raid, swap de couche en multibox avec LayerSwap, ping des ennemis Spy, classement des victoires honorables de la guilde, boost FPS, sans météo ni brouillard.
+Auto Equip (meilleur équipement pour ta classe et ta spécialisation), ramassage instantané, barre d'XP avec l'XP des quêtes, minuteur de tir auto et de baguette, mise à jour des rangs de sorts, points de vol sur la carte, interaction rapide (filons, plantes, coffres, objets de quête, pêche, tout ce qui s'utilise), marqueurs de raid, swap de couche en multibox avec LayerSwap, ping des ennemis Spy, classement des victoires honorables de la guilde, boost FPS, sans météo ni brouillard.
 
 **Installation** : télécharge le zip de la [dernière version](https://github.com/GAMEBOOK/SuperRsk/releases/latest), dézippe-le dans `World of Warcraft\_forever_\Interface\AddOns\`, relance le jeu, tape `/sg`.
 
