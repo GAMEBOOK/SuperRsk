@@ -1,6 +1,6 @@
-# SuperRsk Toolbox: Auto Equip, Fast Loot & QoL for WoW Forever
+# SuperRsk: All in One QoL Addon (Auto Equip, Fast Loot, XP Bar) for WoW Forever
 
-**A homemade quality of life toolbox for World of Warcraft: Forever**, made by SuperRsk and friends.
+**An all in one quality of life addon for World of Warcraft: Forever**, made by SuperRsk and friends.
 Every module can be switched on or off on its own. Type `/sg` in game to open the menu.
 
 **[Download the latest version](https://github.com/GAMEBOOK/SuperRsk/releases/latest)**

@@ -100,6 +100,7 @@ ns.SwapGroupe = Swap
 Swap.PREFIXE = "SGSwap"
 Swap.DUREE = 900          -- le main retenu, en secondes
 Swap.DELAI_INVITE = 1.5   -- après avoir quitté le groupe de l'hôte
+Swap.DELAI_CHEF = 1.2     -- chef : mes persos partent d'abord (message « PART »)
 Swap.ATTENTE_HOTE = 180   -- après la demande de swap : l'invitation de l'hôte passe seule
 
 -- phase : nil, « parti » (groupe quitté), « demande » (swap demandé)
@@ -115,11 +116,6 @@ local function apres(s, f) if C_Timer and C_Timer.After then C_Timer.After(s, f)
 local function quitterGroupe()
     local f = (C_PartyInfo and C_PartyInfo.LeaveParty) or LeaveParty
     if f then pcall(f) end
-end
-
-local function expulser(nom)
-    local f = (C_PartyInfo and C_PartyInfo.UninviteUnit) or UninviteUnit
-    if f then pcall(f, nom) end
 end
 
 local function inviter(nom)
@@ -300,14 +296,13 @@ function Swap.quitter()
     end
     etat.phase = "parti"
     Swap.preparerLecture()
-    -- Chef : j'expulse d'abord mes persos, le groupe est dissous (sinon le
-    -- lead passe à l'un d'eux et ils restent groupés entre eux, impossibles
-    -- à réinviter). Le message part avant.
+    -- Expulser est protégé depuis le patch du 18/11 (ADDON_ACTION_BLOCKED) :
+    -- mes persos partent seuls au message « PART ». Chef, j'attends qu'ils
+    -- soient partis (sinon le lead passe à l'un d'eux et ils restent groupés
+    -- entre eux, impossibles à réinviter).
     local chef = UnitIsGroupLeader and UnitIsGroupLeader("player")
-    local alts = etat.alts
-    apres(0.3, function()
-        if chef then for _, nom in ipairs(alts) do expulser(nom) end end
-        quitterGroupe()
+    apres(chef and Swap.DELAI_CHEF or 0.3, function()
+        if enGroupe() then quitterGroupe() end
     end)
 end
 
