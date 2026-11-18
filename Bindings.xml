@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="CLICK SuperGuideMarqueurs:LeftButton" header="SUPERGUIDE" category="ADDONS"></Binding>
+    <Binding name="CLICK SuperGuideSwapGroupe:LeftButton" category="ADDONS"></Binding>
+    <Binding name="CLICK SuperGuideSwapValider:LeftButton" category="ADDONS"></Binding>
+</Bindings>

@@ -1,0 +1,17 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- Icône de point de vol sur la carte du monde (UI/Vols.lua). Pas d'héritage de
+         MapCanvasPinTemplate : la carte du jeu se charge après SuperGuide. -->
+    <Frame name="SuperGuideVolPinTemplate" mixin="SuperGuideVolPinMixin" virtual="true">
+        <Size x="18" y="18"/>
+        <Layers>
+            <Layer level="ARTWORK">
+                <Texture parentKey="Icone" setAllPoints="true"/>
+            </Layer>
+        </Layers>
+        <!-- Pas d'OnEnter / OnLeave : la carte les pose elle-même et appelle
+             OnMouseEnter / OnMouseLeave du mixin (elle refuse une icône qui en a). -->
+        <Scripts>
+            <OnLoad method="OnLoad"/>
+        </Scripts>
+    </Frame>
+</Ui>

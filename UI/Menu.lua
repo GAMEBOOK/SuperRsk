@@ -1,0 +1,777 @@
+-- Menu principal : barre latérale à gauche, contenu défilant à droite.
+-- Sections : Accueil (tous les modules d'un coup d'œil), Réglages (générés
+-- depuis ns.Reglages.CATEGORIES), une page par module, À propos.
+--
+-- Ouverture : bouton de la minicarte, /sg. Échap ferme.
+
+local ADDON, ns = ...
+
+local Menu = {}
+ns.Menu = Menu
+local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
+
+---------------------------------------------------------------------------
+-- Logique pure (testée hors jeu)
+---------------------------------------------------------------------------
+
+-- Entrées visibles de la barre latérale, de haut en bas : { nom, y, sous,
+-- groupe, def }. Le groupe « modules » déplié montre un bouton par module.
+local PAS = { normal = 34, groupe = 34, sous = 26 }
+function Menu.disposition(sections, modules, deplie)
+    local l, y = {}, -12
+    for _, s in ipairs(sections) do
+        l[#l + 1] = { nom = s.nom, y = y, groupe = s.groupe, def = s }
+        y = y - (s.groupe and PAS.groupe or PAS.normal)
+        if s.groupe and deplie then
+            for _, m in ipairs(modules) do
+                l[#l + 1] = { nom = "module:" .. m.nom, y = y, sous = true, def = m }
+                y = y - PAS.sous
+            end
+        end
+    end
+    return l
+end
+
+---------------------------------------------------------------------------
+-- Fenêtre
+---------------------------------------------------------------------------
+
+local LARGEUR, HAUTEUR = 720, 480
+local ENTETE, LATERALE, MARGE = 46, 168, 18
+local W = LARGEUR - LATERALE - 2 * MARGE - 10   -- largeur utile du contenu
+
+local T, C
+local cadre, defile, ascenseur, sousTitre
+local nav, pages, actuelle = {}, {}, nil
+
+-- Question Oui / Non (fenêtre du jeu) ; sans elle, l'action directement.
+local function confirmer(question, action)
+    if not (StaticPopupDialogs and StaticPopup_Show) then return action() end
+    StaticPopupDialogs.SUPERGUIDE_CONFIRMER = StaticPopupDialogs.SUPERGUIDE_CONFIRMER or {
+        text = "%s", button1 = YES, button2 = NO,
+        OnAccept = function(_, rappel) rappel() end,
+        timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+    }
+    local f = StaticPopup_Show("SUPERGUIDE_CONFIRMER", question, nil, action)
+    if f then f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "CENTER") end
+end
+
+---------------------------------------------------------------------------
+-- Sauvegarde des réglages : texte à copier / coller (fenêtre du jeu)
+---------------------------------------------------------------------------
+
+local function boiteTexte(f) return f.editBox or f.EditBox or (f.GetEditBox and f:GetEditBox()) end
+
+local function fenetreTexte(nom, def)
+    if not (StaticPopupDialogs and StaticPopup_Show) then return end
+    def.hasEditBox, def.editBoxWidth, def.maxLetters = true, 350, 0
+    def.timeout, def.whileDead, def.hideOnEscape, def.preferredIndex = 0, true, true, 3
+    def.EditBoxOnEscapePressed = function(e) e:GetParent():Hide() end
+    StaticPopupDialogs[nom] = StaticPopupDialogs[nom] or def
+end
+
+function Menu.exporterReglages()
+    local texte = ns.Sauvegarde.exporter(SuperGuideDB, ns.Reglages.DEFAUTS)
+    fenetreTexte("SUPERGUIDE_EXPORTER", {
+        text = L["Copie ce texte (Ctrl+C) et garde-le : il contient tous tes réglages."],
+        button1 = CLOSE or OKAY,
+        OnShow = function(f, t)
+            local e = boiteTexte(f)
+            if e then e:SetText(t or ""); e:HighlightText(); e:SetFocus() end
+        end,
+    })
+    if StaticPopup_Show then StaticPopup_Show("SUPERGUIDE_EXPORTER", nil, nil, texte) end
+end
+
+local function importer(f)
+    local e = boiteTexte(f)
+    local t = ns.Sauvegarde.lire(e and e:GetText())
+    if not t then
+        ns.Jeu.message(L["Ce texte n'est pas une sauvegarde de SuperRsk valide : rien n'a changé."])
+        return
+    end
+    ns.Jeu.message(L["%d réglages importés, rechargement de l'interface…"]:format(ns.Sauvegarde.importer(t)))
+    ReloadUI()
+end
+
+function Menu.importerReglages()
+    fenetreTexte("SUPERGUIDE_IMPORTER", {
+        text = L["Colle ici un texte de sauvegarde (Ctrl+V). Tes réglages seront remplacés et l'interface rechargée."],
+        button1 = L["Importer"], button2 = CANCEL,
+        OnAccept = importer,
+        EditBoxOnEnterPressed = function(e) importer(e:GetParent()); e:GetParent():Hide() end,
+        OnShow = function(f) local e = boiteTexte(f); if e then e:SetText(""); e:SetFocus() end end,
+    })
+    if StaticPopup_Show then StaticPopup_Show("SUPERGUIDE_IMPORTER") end
+end
+
+-- Intitulé « RÉCENTS » suivi d'un trait, à la largeur du contenu.
+local function intitule(parent, texte)
+    local f = C.texte(parent, "libelle", "textePale")
+    f:SetText(texte)
+    local t = parent:CreateTexture(nil, "ARTWORK")
+    t:SetColorTexture(T.rgb("bord"))
+    t:SetHeight(1)
+    t:SetPoint("LEFT", f, "RIGHT", 8, 0)
+    t:SetPoint("RIGHT", parent, "LEFT", W, 0)
+    f.trait = t
+    return f
+end
+
+local function placer(f, y, x)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", f.parentPage or f:GetParent(), "TOPLEFT", x or 0, y)
+end
+
+-- Titre et description en tête de page ; renvoie le y suivant.
+local function enTete(p, titre, desc)
+    if p.sansEnTete then return 0 end
+    local t = C.texte(p.cadre, "grand", "texte")
+    t:SetPoint("TOPLEFT", 0, 0)
+    t:SetText(titre)
+    local d = C.texte(p.cadre, "texte", "texteDoux")
+    d:SetPoint("TOPLEFT", 0, -26)
+    d:SetWidth(W)
+    d:SetText(desc)
+    return -26 - (d:GetStringHeight() or 14) - 16
+end
+
+---------------------------------------------------------------------------
+-- Accueil : tous les modules d'un coup d'œil (allumer, couper, ouvrir)
+---------------------------------------------------------------------------
+
+local accueil = {}
+
+local function resumeModule(m, actif)
+    if not actif then return L["Coupé"], "textePale" end
+    return L["Actif"], "vert"
+end
+
+-- Une ligne par module, tout tient sans défiler : case (allumer, couper),
+-- nom, état ; un clic sur la ligne ouvre sa page, le survol la décrit.
+local LIGNE = 24
+
+function accueil.construire(p)
+    p.y0 = enTete(p, L["Accueil"], L["Coche pour allumer ou couper un module, clique sur sa ligne pour le régler."])
+    p.lignes, p.controles = {}, {}
+    p.liste = C.carte(p.cadre)
+    p.liste:SetSize(W, #ns.Reglages.MODULES * LIGNE + 8)
+    for i, m in ipairs(ns.Reglages.MODULES) do
+        local l = CreateFrame("Button", nil, p.liste)
+        l:SetSize(W - 8, LIGNE)
+        l:SetPoint("TOPLEFT", 4, -4 - (i - 1) * LIGNE)
+        local survol = l:CreateTexture(nil, "BACKGROUND")
+        survol:SetAllPoints()
+        survol:SetColorTexture(T.rgb("accent"))
+        survol:SetAlpha(0)
+        if i > 1 then
+            local trait = l:CreateTexture(nil, "BORDER")
+            trait:SetColorTexture(T.rgb("bordFort"))
+            trait:SetAlpha(0.5)
+            trait:SetHeight(1)
+            trait:SetPoint("TOPLEFT", 8, 0)
+            trait:SetPoint("TOPRIGHT", -8, 0)
+        end
+        if m.interrupteur then
+            l.case = C.pour(l, { cle = m.interrupteur, type = "case", libelle = "" }, 20)
+            l.case:SetPoint("LEFT", 8, 0)
+            p.controles[#p.controles + 1] = l.case
+        end
+        l.titre = C.texte(l, "texte", "texte")
+        l.titre:SetPoint("LEFT", 36, 0)
+        l.titre:SetWidth(170)
+        l.titre:SetWordWrap(false)
+        l.titre:SetText(m.titre)
+        l.resume = C.texte(l, "petit", "texteDoux")
+        l.resume:SetPoint("LEFT", 212, 0)
+        l.resume:SetPoint("RIGHT", -70, 0)
+        l.resume:SetWordWrap(false)
+        local ouvrir = C.texte(l, "petit", "accent")
+        ouvrir:SetPoint("RIGHT", -10, 0)
+        ouvrir:SetText(L["Régler ›"])
+        l:SetScript("OnClick", function() Menu.ouvrir("module:" .. m.nom) end)
+        l:SetScript("OnEnter", function(self)
+            survol:SetAlpha(0.08)
+            if m.desc then
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(m.titre)
+                GameTooltip:AddLine(m.desc, 1, 1, 1, true)
+                GameTooltip:Show()
+            end
+        end)
+        l:SetScript("OnLeave", function() survol:SetAlpha(0); GameTooltip:Hide() end)
+        l.module = m
+        p.lignes[i] = l
+    end
+end
+
+function accueil.maj(p)
+    for _, l in ipairs(p.lignes) do
+        local m = l.module
+        if l.case then l.case.maj() end
+        local actif = not m.interrupteur or ns.Reglages.get(m.interrupteur) ~= false
+        local texte, couleur = resumeModule(m, actif)
+        l.resume:SetText(texte)
+        l.resume:SetTextColor(T.rgb(couleur))
+        l.titre:SetTextColor(T.rgb(actif and "texte" or "texteDoux"))
+    end
+    placer(p.liste, p.y0)
+    return -p.y0 + p.liste:GetHeight() + 8
+end
+
+---------------------------------------------------------------------------
+-- Réglages
+---------------------------------------------------------------------------
+
+local reglages = {}
+
+-- Carte titrée à partir de y ; renvoie le y suivant.
+local HAUTEURS = { case = 22, curseur = 38, choix = 48, texture = 48, couleur = 22 }
+local function carteOptions(p, y, titre, hauteurContenu, remplir)
+    local t = intitule(p.cadre, titre:upper())
+    t:SetPoint("TOPLEFT", 0, y)
+    y = y - 18
+    local c = C.carte(p.cadre)
+    c:SetPoint("TOPLEFT", 0, y)
+    c:SetSize(W, hauteurContenu + 24)
+    remplir(c)
+    return y - hauteurContenu - 24 - 16
+end
+
+-- Une carte de contrôles par catégorie { titre, options } ; renvoie le y suivant.
+local function cartesOptions(p, y, categories)
+    p.controles = p.controles or {}
+    for _, cat in ipairs(categories) do
+        local h = 0
+        for i, o in ipairs(cat.options) do h = h + HAUTEURS[o.type] + (i > 1 and 12 or 0) end
+        y = carteOptions(p, y, cat.titre, h, function(c)
+            local yy = -12
+            for _, o in ipairs(cat.options) do
+                local f = C.pour(c, o, W - 28)
+                f:SetPoint("TOPLEFT", 14, yy)
+                p.controles[#p.controles + 1] = f
+                yy = yy - HAUTEURS[o.type] - 12
+            end
+        end)
+    end
+    return y
+end
+
+function reglages.construire(p)
+    local y = enTete(p, L["Réglages"], L["Tout s'applique tout de suite et reste enregistré."])
+    y = cartesOptions(p, y, ns.Reglages.CATEGORIES)
+    local function carte(titre, hauteurContenu, remplir)
+        y = carteOptions(p, y, titre, hauteurContenu, remplir)
+    end
+    carte(L["Positions"], 40, function(c)
+        local d = C.texte(c, "petit", "texteDoux")
+        d:SetPoint("TOPLEFT", 14, -14)
+        d:SetWidth(W - 200)
+        d:SetText(L["Les barres, fenêtres et le bouton de la minicarte reviennent à leur place par défaut."])
+        local b = C.bouton(c, L["Réinitialiser les positions"], "orange", function()
+            confirmer(L["Remettre les barres, les fenêtres et le bouton de la minicarte à leur place ?"],
+                function() ns.Reglages.reinitialiserPositions() end)
+        end, 170)
+        b:SetPoint("RIGHT", -14, 0)
+    end)
+    carte(L["Sauvegarde des réglages"], 40, function(c)
+        local d = C.texte(c, "petit", "texteDoux")
+        d:SetPoint("TOPLEFT", 14, -8)
+        d:SetWidth(W - 260)
+        d:SetText(L["Tes réglages sont communs à tous tes personnages. Un texte à copier pour les remettre sur un autre compte ou après une réinstallation."])
+        local imp = C.bouton(c, L["Importer"], "orange", Menu.importerReglages, 100)
+        imp:SetPoint("RIGHT", -14, 0)
+        local exp = C.bouton(c, L["Exporter"], "accent", Menu.exporterReglages, 100)
+        exp:SetPoint("RIGHT", imp, "LEFT", -8, 0)
+    end)
+    p.hauteur = -y
+end
+
+function reglages.maj(p)
+    for _, f in ipairs(p.controles) do f.maj() end
+    return p.hauteur
+end
+
+---------------------------------------------------------------------------
+-- Marqueurs : la liste des personnes, sous les réglages du module
+---------------------------------------------------------------------------
+
+local personnes = {}
+local LIGNE_PERSONNE = 30
+
+local function personnesChangees()
+    ns.Marqueurs.maj()
+    Menu.rafraichir(true)
+end
+
+local function ajouterPersonne(q, nom)
+    local M = ns.Marqueurs
+    local liste = M.personnes()
+    local ok, raison = M.ajouter(liste, nom, M.libre(liste, ns.Reglages.get("marqueurMoi")))
+    if ok then
+        q.champ:SetText("")
+        q.champ:ClearFocus()
+        personnesChangees()
+    elseif raison == "deja" then
+        ns.Jeu.message(L["%s est déjà dans la liste."]:format(nom))
+    end
+end
+
+-- Ligne : nom, les 8 symboles (le choisi en clair), Retirer.
+local function lignePersonne(q, i)
+    local l = q.lignes[i]
+    if l then return l end
+    l = CreateFrame("Frame", nil, q.carteListe)
+    l:SetSize(W - 28, 26)
+    l.nom = C.texte(l, "texte", "texte")
+    l.nom:SetPoint("LEFT", 0, 0)
+    l.nom:SetWidth(150)
+    l.symboles = {}
+    for n = 1, 8 do
+        local b = CreateFrame("Button", nil, l)
+        b:SetSize(22, 22)
+        b:SetPoint("LEFT", 156 + (n - 1) * 26, 0)
+        b.fond, b.bord = T.fond(b, "flot", 1, "bordFort")
+        b.icone = b:CreateTexture(nil, "ARTWORK")
+        b.icone:SetPoint("TOPLEFT", 3, -3)
+        b.icone:SetPoint("BOTTOMRIGHT", -3, 3)
+        b.icone:SetTexture(ns.Marqueurs.texture(n))
+        b:SetScript("OnClick", function()
+            ns.Marqueurs.personnes()[l.index].icone = n
+            personnesChangees()
+        end)
+        C.infobulle(b, ns.Marqueurs.NOMS[n])
+        l.symboles[n] = b
+    end
+    l.retirer = C.bouton(l, L["Retirer"], "rouge", function()
+        table.remove(ns.Marqueurs.personnes(), l.index)
+        personnesChangees()
+    end, 80)
+    l.retirer:SetPoint("RIGHT", 0, 0)
+    q.lignes[i] = l
+    return l
+end
+
+function personnes.construire(q)
+    q.y1 = -q.hauteur
+    q.titreListe = intitule(q.cadre, L["PERSONNES"])
+    local c = C.carte(q.cadre)
+    c:SetWidth(W)
+    q.carteListe = c
+    q.aide = C.texte(c, "petit", "texteDoux")
+    q.aide:SetPoint("TOPLEFT", 14, -12)
+    q.aide:SetWidth(W - 28)
+    q.aide:SetText(L["Leur symbole est posé quand elles sont dans ton groupe. Écris un nom (Nom-Royaume pour un autre royaume) ou cible la personne, puis ajoute-la. Clic sur un symbole pour le changer."])
+    q.hauteurAide = q.aide:GetStringHeight() or 28
+    q.champ = C.champ(c, W - 28 - 90 - 110 - 16, L["Nom du joueur"], nil, nil,
+        function(e) ajouterPersonne(q, e:GetText()) end)
+    q.champ:SetPoint("TOPLEFT", 14, -12 - q.hauteurAide - 10)
+    q.ajouter = C.bouton(c, L["Ajouter"], "vert", function() ajouterPersonne(q, q.champ:GetText()) end, 90)
+    q.ajouter:SetPoint("LEFT", q.champ, "RIGHT", 8, 0)
+    q.maCible = C.bouton(c, L["Ma cible"], "accent", function()
+        local nom = UnitIsPlayer("target") and GetUnitName("target", true)
+        if nom and not (issecretvalue and issecretvalue(nom)) then ajouterPersonne(q, nom)
+        else ns.Jeu.message(L["Cible d'abord un joueur."]) end
+    end, 110)
+    q.maCible:SetPoint("LEFT", q.ajouter, "RIGHT", 8, 0)
+    q.vide = C.texte(c, "texte", "textePale")
+    q.vide:SetText(L["Personne pour l'instant."])
+    q.lignes = {}
+end
+
+function personnes.maj(q)
+    local liste = ns.Marqueurs.personnes()
+    local y = q.y1
+    placer(q.titreListe, y)
+    y = y - 18
+    placer(q.carteListe, y)
+    local yy = -12 - q.hauteurAide - 10 - 26 - 14
+    for _, l in ipairs(q.lignes) do l:Hide() end
+    for i, e in ipairs(liste) do
+        local l = lignePersonne(q, i)
+        l.index = i
+        l.nom:SetText(e.nom)
+        for n, b in ipairs(l.symboles) do
+            local oui = n == e.icone
+            b.icone:SetAlpha(oui and 1 or 0.3)
+            b.bord:SetVertexColor(T.rgb(oui and "accent" or "bordFort"))
+        end
+        placer(l, yy, 14)
+        l:Show()
+        yy = yy - LIGNE_PERSONNE
+    end
+    if #liste == 0 then
+        placer(q.vide, yy, 14)
+        q.vide:Show()
+        yy = yy - 20
+    else
+        q.vide:Hide()
+    end
+    q.carteListe:SetHeight(-yy + 6)
+    return -y - yy + 6 + 16
+end
+
+---------------------------------------------------------------------------
+-- Module (une page par module de ns.Reglages.MODULES)
+---------------------------------------------------------------------------
+
+local module = {}
+
+-- Partie propre à un module, sous ses réglages (construire, puis maj qui
+-- rend la hauteur totale).
+local EXTRAS = { marqueurs = personnes }
+
+-- Onglets d'un module : { { nom, titre, page } } ; sans entrée, une seule page de réglages.
+local ONGLETS = {}
+
+-- Réglages du module dans le cadre q (cartes, puis Déplacer et boutons).
+local function construireReglages(q, m)
+    local y = cartesOptions(q, 0, m.categories or { { titre = L["Réglages"], options = m.options } })
+    local x = 0
+    if m.deplacer then
+        local b = C.bouton(q.cadre, L["Déplacer"], "accent", function() ns.Deplacement.ouvrir() end, 140)
+        b:SetPoint("TOPLEFT", 0, y)
+        x = 148
+    end
+    for _, d in ipairs(m.boutons or {}) do
+        local b = C.bouton(q.cadre, d.texte, "accent", d.action, 180)
+        b:SetPoint("TOPLEFT", x, y)
+        x = x + 188
+    end
+    if x > 0 then y = y - 24 - 16 end
+    q.hauteur = -y
+    q.extra = EXTRAS[m.nom]
+    if q.extra then q.extra.construire(q) end
+end
+
+-- Sous-page (onglet) : son propre cadre sous l'en-tête et les onglets.
+local function sousPage(p, def)
+    local f = CreateFrame("Frame", nil, p.cadre)
+    f:SetPoint("TOPLEFT", 0, p.y0)
+    f:SetSize(W, 10)
+    return { cadre = f, def = p.def, sansEnTete = true, page = def and def.page }
+end
+
+function module.construire(p)
+    local m = p.def.module
+    p.y0 = enTete(p, m.titre, m.desc)
+    p.onglets = ONGLETS[m.nom]
+    if p.onglets then
+        p.boutons = {}
+        local x = 0
+        for _, o in ipairs(p.onglets) do
+            local b = C.bouton(p.cadre, L[o.titre], "texte", function()
+                p.onglet = o.nom
+                Menu.rafraichir()
+            end, 120)
+            b:SetPoint("TOPLEFT", x, p.y0)
+            x = x + 128
+            p.boutons[o.nom] = b
+        end
+        p.y0 = p.y0 - 24 - 16
+        p.onglet = p.onglet or p.onglets[1].nom
+    end
+    p.sous = {}
+end
+
+-- Onglet affiché (construit à la première visite) ; sans onglets : les réglages.
+function module.maj(p)
+    local m = p.def.module
+    local nom = p.onglet or "reglages"
+    for k, q in pairs(p.sous) do q.cadre:SetShown(k == nom) end
+    local q = p.sous[nom]
+    if not q then
+        local def
+        for _, o in ipairs(p.onglets or {}) do if o.nom == nom then def = o end end
+        q = sousPage(p, def)
+        if q.page then q.page.construire(q) else q.controles = {}; construireReglages(q, m) end
+        p.sous[nom] = q
+    end
+    q.cadre:Show()
+    for k, b in pairs(p.boutons or {}) do
+        b.texte:SetTextColor(T.rgb(k == nom and "accent" or "texteDoux"))
+    end
+    local h
+    if q.page then h = q.page.maj(q) else h = reglages.maj(q) end
+    if q.extra then h = q.extra.maj(q) end
+    q.cadre:SetHeight(math.max(10, h or 10))
+    -- Le menu relit les réglages de la page affichée (réglage changé ailleurs).
+    p.controles = q.controles
+    return -p.y0 + (h or 0)
+end
+
+---------------------------------------------------------------------------
+-- À propos
+---------------------------------------------------------------------------
+
+local apropos = {}
+
+local function version()
+    local f = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    return f and f(ADDON, "Version") or "?"
+end
+
+function apropos.construire(p)
+    local y = enTete(p, "SuperRsk", L["Version %s · la boîte à outils maison de SuperRsk et ses potes."]:format(version()))
+    local function bloc(titre, lignes)
+        local t = intitule(p.cadre, titre)
+        t:SetPoint("TOPLEFT", 0, y)
+        y = y - 20
+        local f = C.texte(p.cadre, "texte", "texteDoux")
+        f:SetPoint("TOPLEFT", 0, y)
+        f:SetWidth(W)
+        f:SetSpacing(5)
+        f:SetText(table.concat(lignes, "\n"))
+        y = y - (f:GetStringHeight() or 60) - 20
+    end
+    local a = "|cff" .. T.hex.accent
+    bloc(L["COMMANDES"], {
+        a .. "/sg|r  " .. L["ce menu (aussi /srsk)"],
+        a .. "/sg move|r  " .. L["déplacer les barres et fenêtres"],
+        a .. "/sg tir|r  " .. L["armement mesuré du tir auto / de la baguette"],
+        a .. "/sg spe|r  " .. L["arbre de talents retenu par Auto Equip"],
+    })
+    bloc(L["CRÉDITS"], {
+        L["Icônes : Lucide (licence ISC)."],
+        L["Police : Archivo (SIL Open Font License 1.1)."],
+        L["Bibliothèques : LibStub, CallbackHandler-1.0, FlightMasterData."],
+    })
+    p.hauteur = -y
+end
+
+function apropos.maj(p) return p.hauteur end
+
+---------------------------------------------------------------------------
+-- Cadre, navigation, défilement
+---------------------------------------------------------------------------
+
+local SECTIONS = {
+    { nom = "accueil", libelle = "Accueil", icone = "accueil", page = accueil },
+    { nom = "reglages", libelle = "Réglages", icone = "reglages", page = reglages },
+    { nom = "modules", libelle = "Module", icone = "liste", groupe = true },
+    { nom = "apropos", libelle = "À propos", icone = "info", page = apropos },
+}
+
+local function majAscenseur()
+    local max = defile:GetVerticalScrollRange() or 0
+    if max <= 0 then ascenseur:Hide(); return end
+    local h = defile:GetHeight() or 1
+    local hp = h * h / (h + max)
+    ascenseur:SetHeight(hp)
+    ascenseur:ClearAllPoints()
+    ascenseur:SetPoint("TOPRIGHT", defile, "TOPRIGHT", 8, -(h - hp) * (defile:GetVerticalScroll() or 0) / max)
+    ascenseur:Show()
+end
+
+local function defiler(delta)
+    local max = defile:GetVerticalScrollRange() or 0
+    local v = math.max(0, math.min(max, (defile:GetVerticalScroll() or 0) - delta * 40))
+    defile:SetVerticalScroll(v)
+    majAscenseur()
+end
+
+local deplie = false
+
+local function majNav()
+    local visibles = {}
+    for _, e in ipairs(Menu.disposition(SECTIONS, ns.Reglages.MODULES, deplie)) do visibles[e.nom] = e end
+    for _, b in ipairs(nav) do
+        local e = visibles[b.nom]
+        b:SetShown(e ~= nil)
+        if e then
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", e.sous and 20 or 8, e.y)
+        end
+        if b.chevron then b.chevron:SetRotation(deplie and -math.pi / 2 or 0) end
+        local oui = b.nom == actuelle
+        b.fond:SetAlpha(oui and 1 or 0)
+        b.bord:SetAlpha(oui and 1 or 0)
+        b.barre:SetShown(oui)
+        b.icone:SetVertexColor(T.rgb(oui and "accent" or "texteDoux"))
+        b.texte:SetTextColor(T.rgb(oui and "texte" or "texteDoux"))
+    end
+end
+
+local function creer()
+    if cadre then return end
+    T, C = ns.Theme, ns.Controles
+    cadre = CreateFrame("Frame", "SuperGuideMenu", UIParent)
+    cadre:SetSize(LARGEUR, HAUTEUR)
+    cadre:SetPoint("CENTER")
+    cadre:SetFrameStrata("HIGH")   -- sous les confirmations (DIALOG)
+    cadre:SetToplevel(true)
+    cadre:SetClampedToScreen(true)
+    cadre:SetMovable(true)
+    cadre:EnableMouse(true)
+    T.fond(cadre, "panneau", 0.98, "bordFort")
+    cadre:Hide()
+    if UISpecialFrames then table.insert(UISpecialFrames, "SuperGuideMenu") end
+
+    -- En-tête : logo, titre, section, fermer. On déplace le menu par là.
+    local entete = CreateFrame("Frame", nil, cadre)
+    entete:SetPoint("TOPLEFT"); entete:SetPoint("TOPRIGHT")
+    entete:SetHeight(ENTETE)
+    entete:EnableMouse(true)
+    entete:RegisterForDrag("LeftButton")
+    entete:SetScript("OnDragStart", function() cadre:StartMoving() end)
+    entete:SetScript("OnDragStop", function() cadre:StopMovingOrSizing() end)
+    local logo = entete:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(T.icone("boussole"))
+    logo:SetSize(20, 20)
+    logo:SetPoint("LEFT", MARGE, 0)
+    logo:SetVertexColor(T.rgb("accent"))
+    local titre = C.texte(entete, "grand", "texte")
+    titre:SetPoint("LEFT", logo, "RIGHT", 8, 0)
+    titre:SetText("SuperRsk")
+    sousTitre = C.texte(entete, "texte", "textePale")
+    sousTitre:SetPoint("LEFT", titre, "RIGHT", 10, -1)
+    local fermer = CreateFrame("Button", nil, entete)
+    fermer:SetSize(24, 24)
+    fermer:SetPoint("RIGHT", -12, 0)
+    T.fond(fermer, "flot", 1, "bordFort")
+    local x = fermer:CreateTexture(nil, "ARTWORK")
+    x:SetTexture(T.icone("fermer"))
+    x:SetSize(13, 13)
+    x:SetPoint("CENTER")
+    x:SetVertexColor(T.rgb("texteDoux"))
+    fermer:SetScript("OnEnter", function() x:SetVertexColor(T.rgb("rouge")) end)
+    fermer:SetScript("OnLeave", function() x:SetVertexColor(T.rgb("texteDoux")) end)
+    fermer:SetScript("OnClick", function() cadre:Hide() end)
+    local sep = T.separateur(cadre)
+    sep:SetPoint("TOPLEFT", 1, -ENTETE)
+    sep:SetPoint("TOPRIGHT", -1, -ENTETE)
+
+    -- Barre latérale.
+    local cote = CreateFrame("Frame", nil, cadre)
+    cote:SetPoint("TOPLEFT", 1, -ENTETE - 1)
+    cote:SetPoint("BOTTOMLEFT", 1, 1)
+    cote:SetWidth(LATERALE)
+    local fc = cote:CreateTexture(nil, "BACKGROUND")
+    fc:SetAllPoints()
+    local r, g, b = T.rgb("sombre")
+    fc:SetColorTexture(r, g, b, 0.6)
+    local trait = cote:CreateTexture(nil, "ARTWORK")
+    trait:SetColorTexture(T.rgb("bord"))
+    trait:SetWidth(1)
+    trait:SetPoint("TOPRIGHT"); trait:SetPoint("BOTTOMRIGHT")
+    local entrees = {}
+    for _, s in ipairs(SECTIONS) do entrees[#entrees + 1] = s end
+    for _, m in ipairs(ns.Reglages.MODULES) do
+        entrees[#entrees + 1] = { nom = "module:" .. m.nom, libelle = m.titre, icone = "fait", sous = true,
+                                  page = module, module = m }
+    end
+    for i, s in ipairs(entrees) do
+        local bt = CreateFrame("Button", nil, cote)
+        bt:SetSize(LATERALE - (s.sous and 28 or 16), s.sous and 24 or 32)
+        bt.nom = s.nom
+        bt.fond, bt.bord = T.fond(bt, "flot", 1, "bordFort")
+        bt.barre = bt:CreateTexture(nil, "OVERLAY")
+        bt.barre:SetColorTexture(T.rgb("accent"))
+        bt.barre:SetSize(3, 18)
+        bt.barre:SetPoint("LEFT", 0, 0)
+        bt.icone = bt:CreateTexture(nil, "ARTWORK")
+        bt.icone:SetTexture(T.icone(s.icone))
+        bt.icone:SetSize(15, 15)
+        bt.icone:SetPoint("LEFT", 14, 0)
+        bt.texte = C.texte(bt, "texte", "texteDoux")
+        bt.texte:SetPoint("LEFT", bt.icone, "RIGHT", 10, 0)
+        bt.texte:SetText(L[s.libelle])
+        bt.chevron = false
+        if s.groupe then
+            -- Chevron à droite : clic = déplier / replier.
+            bt.chevron = bt:CreateTexture(nil, "ARTWORK")
+            bt.chevron:SetTexture(T.icone("suivant"))
+            bt.chevron:SetSize(12, 12)
+            bt.chevron:SetPoint("RIGHT", -10, 0)
+            bt.chevron:SetVertexColor(T.rgb("texteDoux"))
+        end
+        bt:SetScript("OnEnter", function(self) if self.nom ~= actuelle then self.texte:SetTextColor(T.rgb("texte")) end end)
+        bt:SetScript("OnLeave", function(self) if self.nom ~= actuelle then self.texte:SetTextColor(T.rgb("texteDoux")) end end)
+        bt:SetScript("OnClick", function()
+            if s.groupe then deplie = not deplie; majNav() else Menu.ouvrir(s.nom) end
+        end)
+        nav[i] = bt
+    end
+    majNav()
+    -- La liste dépliée doit tenir au-dessus du pied : la fenêtre grandit
+    -- s'il le faut (plus de modules qu'avant).
+    local bas = 0
+    for _, e in ipairs(Menu.disposition(SECTIONS, ns.Reglages.MODULES, true)) do bas = math.min(bas, e.y) end
+    cadre:SetHeight(math.max(HAUTEUR, ENTETE + (-bas) + PAS.sous + 44))
+    local pied = C.texte(cote, "petit", "textePale")
+    pied:SetPoint("BOTTOMLEFT", 16, 14)
+    pied:SetText("v" .. version() .. "  ·  /sg menu")
+
+    -- Contenu défilant (molette) avec un ascenseur fin.
+    defile = CreateFrame("ScrollFrame", nil, cadre)
+    defile:SetPoint("TOPLEFT", LATERALE + MARGE, -ENTETE - MARGE)
+    defile:SetPoint("BOTTOMRIGHT", -MARGE - 10, MARGE)
+    defile:EnableMouseWheel(true)
+    defile:SetScript("OnMouseWheel", function(_, d) defiler(d) end)
+    defile:SetScript("OnScrollRangeChanged", majAscenseur)
+    ascenseur = cadre:CreateTexture(nil, "OVERLAY")
+    ascenseur:SetColorTexture(T.rgb("bordFort"))
+    ascenseur:SetWidth(4)
+    ascenseur:Hide()
+
+    for _, s in ipairs(entrees) do
+        if s.page then
+            local f = CreateFrame("Frame", nil, defile)
+            f:SetSize(W, 10)
+            f:Hide()
+            pages[s.nom] = { cadre = f, def = s }
+        end
+    end
+
+    -- Un réglage changé ailleurs (/sg lock, Ctrl + molette) : on relit.
+    ns.Reglages.ecouter(function() if cadre:IsShown() and pages[actuelle] and pages[actuelle].controles then Menu.rafraichir(true) end end)
+end
+
+-- Redessine la page affichée ; « garder » conserve la position de défilement.
+function Menu.rafraichir(garder)
+    if not (cadre and cadre:IsShown() and actuelle) then return end
+    local p = pages[actuelle]
+    p.cadre:SetHeight(math.max(10, p.def.page.maj(p)))
+    if defile.UpdateScrollChildRect then defile:UpdateScrollChildRect() end
+    if not garder then defile:SetVerticalScroll(0) end
+    majAscenseur()
+end
+
+local ALIAS = {}
+
+function Menu.ouvrir(nom, onglet)
+    creer()
+    if ALIAS[nom] then nom, onglet = ALIAS[nom][1], onglet or ALIAS[nom][2] end
+    nom = (nom and pages[nom]) and nom or actuelle or "accueil"
+    local p = pages[nom]
+    if not p.construit then
+        p.def.page.construire(p)
+        p.construit = true
+    end
+    if onglet and p.onglets then p.onglet = onglet end
+    for _, q in pairs(pages) do q.cadre:Hide() end
+    p.cadre:Show()
+    defile:SetScrollChild(p.cadre)
+    actuelle = nom
+    if p.def.sous then deplie = true end
+    sousTitre:SetText(L[p.def.libelle])
+    majNav()
+    cadre:Show()
+    cadre:Raise()
+    Menu.rafraichir()
+end
+
+function Menu.fermer() if cadre then cadre:Hide() end end
+
+function Menu.basculer(nom)
+    if cadre and cadre:IsShown() and (not nom or nom == actuelle) then return cadre:Hide() end
+    Menu.ouvrir(nom)
+end
+
+function Menu.ouvert() return cadre ~= nil and cadre:IsShown() end
+
+-- Page affichée et son onglet (nil sans onglets).
+function Menu.actuelle()
+    local p = actuelle and pages[actuelle]
+    return actuelle, p and p.onglet
+end

@@ -1,0 +1,80 @@
+## Interface: 16001
+## Title: |cff33ccffSuperRsk|r Toolbox
+## Notes: WoW Forever quality of life toolbox: Auto Equip best gear upgrades, instant fast loot, XP bar with quest XP, auto shot / wand timer, spell rank updater, raid markers, multibox layer swap (LayerSwap), Spy enemy ping, honorable kills guild ranking, FPS boost, no weather. /sg
+## Notes-frFR: Boîte à outils qualité de vie pour WoW Forever : Auto Equip (meilleur équipement), ramassage instantané, barre d'XP avec XP des quêtes, minuteur de tir auto / baguette, mise à jour des rangs de sorts, marqueurs de raid, swap de couche en multibox (LayerSwap), ping des ennemis Spy, classement des victoires honorables de la guilde, boost FPS, sans météo. /sg
+## Author: SuperRsk
+## Version: 1.0.0
+## Category: Miscellaneous
+## Category-frFR: Divers
+## Group: SuperRsk
+## IconTexture: Interface\AddOns\SuperRsk\Media\Icones\boussole
+## X-License: All Rights Reserved
+## X-Website: https://github.com/GAMEBOOK/SuperRsk
+## SavedVariables: SuperGuideDB
+## SavedVariablesPerCharacter: SuperGuideCharDB
+## OptionalDeps: Spy, TomTom, LayerSwap
+
+# --- Bibliotheques -----------------------------------------------------------
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+# Points de vol (bibliothèque FlightMasterData de SuperRsk, données Forever)
+Libs\FlightMasterData\FlightMasterData.lua
+Libs\FlightMasterData\Data\ClientProfiles.lua
+Libs\FlightMasterData\Client.lua
+Libs\FlightMasterData\Data\forever\TaxiNodes.lua
+Libs\FlightMasterData\Data\forever\PlayerConditions.lua
+Libs\FlightMasterData\Data\forever\ModifierTrees.lua
+Libs\FlightMasterData\Data\forever\SupportingData.lua
+Libs\FlightMasterData\Locale\forever\enUS.lua
+Libs\FlightMasterData\Locale\forever\enGB.lua
+Libs\FlightMasterData\Locale\forever\deDE.lua
+Libs\FlightMasterData\Locale\forever\esES.lua
+Libs\FlightMasterData\Locale\forever\esMX.lua
+Libs\FlightMasterData\Locale\forever\frFR.lua
+Libs\FlightMasterData\Locale\forever\itIT.lua
+Libs\FlightMasterData\Locale\forever\koKR.lua
+Libs\FlightMasterData\Locale\forever\ptBR.lua
+Libs\FlightMasterData\Locale\forever\ruRU.lua
+Libs\FlightMasterData\Locale\forever\zhCN.lua
+Libs\FlightMasterData\Locale\forever\zhTW.lua
+Libs\FlightMasterData\Compatibility.lua
+Libs\FlightMasterData\Localization.lua
+Libs\FlightMasterData\Conditions.lua
+Libs\FlightMasterData\Coordinates.lua
+Libs\FlightMasterData\API.lua
+
+# --- Noyau (logique pure : n'appelle le jeu que par ns.Jeu) -----------------
+Core\Locale.lua
+Core\Jeu.lua
+Core\Reglages.lua
+Core\Sauvegarde.lua
+Core\Quetes.lua
+Core\Equipement.lua
+Core\BarreXP.lua
+Core\Butin.lua
+Core\Rangs.lua
+Core\Marqueurs.lua
+Core\Tir.lua
+Core\Graphismes.lua
+Core\PingSpy.lua
+Core\Tsquid.lua
+Core\Vols.lua
+
+# --- Interface ---------------------------------------------------------------
+UI\Theme.lua
+UI\Controles.lua
+UI\Deplacement.lua
+UI\Menu.lua
+UI\Minimap.lua
+UI\Proposition.lua
+UI\BarreXP.lua
+UI\Butin.lua
+UI\ListeButin.lua
+UI\Rangs.lua
+UI\Marqueurs.lua
+UI\Tir.lua
+UI\Vols.lua
+UI\Vols.xml
+
+# --- Pilotage ----------------------------------------------------------------
+Core\Init.lua
