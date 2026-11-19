@@ -550,9 +550,18 @@ function VH.basculerListe()
     end
 end
 
+local apercuVH = false
+
+function VH.vitrine() return widget, "vh" end
+
+function VH.apercu(oui)
+    apercuVH = oui and true or false
+    VH.rafraichir()
+end
+
 function VH.rafraichir()
     if not widget then return end
-    if ns.Reglages.get("vhActif") == false then widget:Hide(); return end
+    if ns.Reglages.get("vhActif") == false and not apercuVH then widget:Hide(); return end
     local m = VH.moi()
     widget.texte:SetText(VH.nombre(m.total))
     local suffixe = m.jour > 0 and ("|cff6fdc6f+" .. VH.nombre(m.jour) .. "|r") or ""

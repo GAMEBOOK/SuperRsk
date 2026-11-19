@@ -370,6 +370,53 @@ function Jeu.objetsGris()
 end
 
 function Jeu.vendre(sac, case) C_Container.UseContainerItem(sac, case) end
+
+-- Prix à l'hôtel des ventes (pièce unique, en cuivre) d'après le dernier scan
+-- d'Auctionator s'il est installé ; nil sans scan.
+function Jeu.prixHV(lien)
+    local api = Auctionator and Auctionator.API and Auctionator.API.v1
+    if not (api and api.GetAuctionPriceByItemLink and type(lien) == "string") then return nil end
+    local ok, p = pcall(api.GetAuctionPriceByItemLink, "SuperRsk", lien)
+    return ok and tonumber(p) or nil
+end
+
+-- Tous les objets gris des sacs, même sans valeur :
+-- { sac, case, lien, icone, prix (marchand, total), hv (total ou nil), nombre }.
+function Jeu.objetsMediocres()
+    local liste = {}
+    if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
+    for sac = 0, 4 do
+        -- Sacs spéciaux (carquois, herbes, âmes…) : famille non nulle, pas de gris dedans.
+        local _, famille = C_Container.GetContainerNumFreeSlots and C_Container.GetContainerNumFreeSlots(sac)
+        local normal = (famille or 0) == 0
+        for case = 1, normal and (C_Container.GetContainerNumSlots(sac) or 0) or 0 do
+            local info = C_Container.GetContainerItemInfo(sac, case)
+            if info and info.quality == 0 and info.hyperlink then
+                local prix = info.hasNoValue and 0 or (select(11, C_Item.GetItemInfo(info.hyperlink)) or 0)
+                local n = info.stackCount or 1
+                local hv = Jeu.prixHV(info.hyperlink)
+                liste[#liste + 1] = { sac = sac, case = case, lien = info.hyperlink, icone = info.iconFileID,
+                                      prix = prix * n, hv = hv and hv * n or nil, nombre = n }
+            end
+        end
+    end
+    return liste
+end
+
+function Jeu.lienSac(sac, case)
+    return C_Container and C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(sac, case)
+end
+
+-- Détruit l'objet de cette case (prend l'objet, le jette). Rend true si fait.
+function Jeu.jeter(sac, case)
+    if CursorHasItem and CursorHasItem() then return false end
+    C_Container.PickupContainerItem(sac, case)
+    if CursorHasItem and CursorHasItem() then
+        DeleteCursorItem()
+        return true
+    end
+    return false
+end
 function Jeu.marchandOuvert() return MerchantFrame and MerchantFrame:IsShown() or false end
 function Jeu.peutReparer() return CanMerchantRepair and CanMerchantRepair() or false end
 function Jeu.coutReparation()

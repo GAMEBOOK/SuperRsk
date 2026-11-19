@@ -96,11 +96,18 @@ end
 local Swap = ns.SwapGroupe
 local barre, b1, b2
 
-local TEXTES = { quitter = L["Swap layer"], demander = L["Swap layer"] }
+local TEXTES = { quitter = L["Quitter le groupe"], demander = L["Swap layer"] }
 local AIDES = {
-    quitter = L["Retient tes persos du groupe, les prévient et quitte le groupe. Reclique pour demander le swap."],
     demander = L["Demande un swap à LayerSwap (valide ensuite avec Entrée si la demande part dans la discussion)."],
 }
+
+-- Infobulle du bouton de gauche en groupe : groupe de l'hôte ou de la team.
+local function aideQuitter()
+    if Swap.swapDemande() then
+        return L["Tu es sur la bonne couche : quitte le groupe de l'hôte, puis invite ta team."]
+    end
+    return L["Quitte le groupe : ta team est prévenue et part aussi. Ensuite, clique sur Swap layer."]
+end
 
 -- Infobulle du bouton « Inviter la team » : qui sera invité.
 local function aideInviter()
@@ -124,21 +131,6 @@ local function aide(b, titre, texte)
     b:HookScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
--- Bouton 2 sécurisé : en mode « symboles », sa macro pose les symboles
--- (comme la touche des Marqueurs) ; sinon il ne fait que notre clic.
--- Ses attributs ne changent pas en combat (repris à la sortie).
-local attenteCombat = false
-local function modeSecurise(mode)
-    if InCombatLockdown() then attenteCombat = true; return end
-    attenteCombat = false
-    if mode == "symboles" then
-        b2:SetAttribute("type", "macro")
-        b2:SetAttribute("macrotext", texte())
-    else
-        b2:SetAttribute("type", nil)
-    end
-end
-
 -- Les demandes faites par LayerSwap lui-même comptent aussi (une seule fois).
 local branche = {}
 local function brancherLayerSwap()
@@ -156,32 +148,44 @@ local function brancherLayerSwap()
     end
 end
 
-function Swap.rafraichir()
+local apercuSwap = false
+
+function Swap.vitrine() return barre, "swap" end
+
+function Swap.apercu(oui)
     if not barre then return end
+    apercuSwap = oui and true or false
+    b1:EnableMouse(not apercuSwap)
+    b2:EnableMouse(not apercuSwap)
+    if apercuSwap then
+        barre:Show()
+        local debut = GetTime()
+        barre:SetScript("OnUpdate", function()
+            local quitter = math.floor((GetTime() - debut) / 1.6) % 2 == 0
+            b1.texte:SetText(quitter and TEXTES.quitter or TEXTES.demander)
+            b2.texte:SetText(L["Inviter la team (%d)"]:format(math.max(2, Swap.nombreAlts())))
+            b2:SetAlpha(1)
+        end)
+    else
+        barre:SetScript("OnUpdate", nil)
+        Swap.rafraichir()
+    end
+end
+
+function Swap.rafraichir()
+    if not barre or apercuSwap then return end
     brancherLayerSwap()
-    local e2 = Swap.etape2()
-    if b2.mode ~= e2 or attenteCombat then modeSecurise(e2) end
-    b2.mode = e2
     if R("swapGroupeActif") == false or not Swap.layerSwap() then
         if not InCombatLockdown() then barre:Hide() end
         return
     end
     local e = Swap.etape()
-    b1.texte:SetText(TEXTES[e]); b1.titre, b1.aide = TEXTES[e], AIDES[e]
-    if e2 == "symboles" then
-        b2.texte:SetText(L["Remettre les symboles"])
-        b2.titre, b2.aide = L["Remettre les symboles"], L["Clique quand tes persos ont rejoint le groupe : pose ton symbole et ceux de ta liste."]
-        b2:SetAlpha(1)
-    elseif e2 == "quitter" then
-        b2.texte:SetText(L["Quitter le groupe"])
-        b2.titre, b2.aide = L["Quitter le groupe"], L["Tu es sur la bonne couche : quitte le groupe de l'hôte. Ensuite, invite ta team."]
-        b2:SetAlpha(1)
-    else
-        local n = Swap.nombreAlts()
-        b2.texte:SetText(n > 0 and L["Inviter la team (%d)"]:format(n) or L["Inviter la team"])
-        b2.titre, b2.aide = L["Inviter la team"], aideInviter
-        b2:SetAlpha(n > 0 and 1 or 0.5)
-    end
+    b1.texte:SetText(TEXTES[e])
+    b1.titre, b1.aide = TEXTES[e], e == "quitter" and aideQuitter or AIDES.demander
+    local n = Swap.nombreAlts()
+    b2.texte:SetText(n > 0 and L["Inviter la team (%d)"]:format(n) or L["Inviter la team"])
+    b2.titre, b2.aide = L["Inviter la team"], aideInviter
+    b2:SetAlpha(n > 0 and 1 or 0.5)
     if not InCombatLockdown() then barre:Show() end
 end
 
@@ -239,20 +243,14 @@ function Swap.creer()
     barre:SetClampedToScreen(true)
     barre:SetFrameStrata("HIGH")
     placer()
-    b1 = C.bouton(barre, TEXTES.quitter, "accent", function() Swap.cliquer() end, 128)
+    b1 = C.bouton(barre, TEXTES.demander, "accent", function() Swap.cliquer() end, 128)
     b1:SetPoint("LEFT")
     -- Nommé : sa touche (Raccourcis > SuperRsk) le clique, même barre cachée.
     b2 = boutonSecurise(barre, "SuperGuideSwapValider", "vert", 160)
     b2:SetPoint("LEFT", b1, "RIGHT", 8, 0)
-    b2:HookScript("OnClick", function(self)
-        if self.mode == "symboles" then Swap.symbolesPoses(); Swap.rafraichir()
-        else Swap.cliquerValider() end
-    end)
-    aide(b1, TEXTES.quitter, AIDES.quitter)
+    b2:HookScript("OnClick", function() Swap.cliquerValider() end)
+    aide(b1, TEXTES.demander, AIDES.demander)
     aide(b2, L["Inviter la team"], aideInviter)
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetScript("OnEvent", function() if attenteCombat then Swap.rafraichir() end end)
     glissable(b1); glissable(b2)
     barre:Hide()
 
@@ -261,8 +259,8 @@ function Swap.creer()
     t:RegisterForClicks("AnyDown")
     t:SetScript("OnClick", function() Swap.cliquer() end)
     t:Hide()
-    _G["BINDING_NAME_CLICK SuperGuideSwapGroupe:LeftButton"] = L["Swap layer"]
-    _G["BINDING_NAME_CLICK SuperGuideSwapValider:LeftButton"] = L["Quitter le groupe, inviter la team, puis remettre les symboles"]
+    _G["BINDING_NAME_CLICK SuperGuideSwapGroupe:LeftButton"] = L["Swap layer (ou quitter le groupe)"]
+    _G["BINDING_NAME_CLICK SuperGuideSwapValider:LeftButton"] = L["Inviter la team"]
 
     Swap.rafraichir()
 end

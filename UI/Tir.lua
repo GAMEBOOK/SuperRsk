@@ -36,6 +36,8 @@ local arret                     -- début de la mesure en cours
 -- ShotWindow dessine sur la barre du jeu : en veille seulement si on l'utilise aussi.
 local shotWindow = false
 local function enVeille() return shotWindow and R("tirBarre") == "jeu" end
+-- Aperçu (page du module) : cycles de tir simulés en boucle sur notre barre.
+local apercu, demo = false, nil   -- demo = { debut, duree }
 
 local function secret(v) return issecretvalue and issecretvalue(v) end
 local function nombre(v) if not secret(v) and type(v) == "number" then return v end end
@@ -92,6 +94,7 @@ local function actif() return sort and not enVeille() and R("tirActif") end
 
 -- Notre barre : visible quand on tire (ou qu'un tir est en cours / attendu).
 local function visible()
+    if apercu then return propre ~= nil end
     if not (propre ~= nil and barre == propre and actif()) then return false end
     local mode = R("tirAffichage")
     return mode == "toujours" or (mode == "combat" and enCombat)
@@ -100,6 +103,10 @@ end
 
 -- Secondes avant le prochain tir (« 1,5 »), si l'option est cochée.
 local function texteTemps()
+    if apercu and demo and R("tirTemps") then
+        local reste = math.max(0, demo.duree - (GetTime() - demo.debut))
+        return (("%.1f"):format(reste):gsub("%.", ","))
+    end
     if not (R("tirTemps") and debut) then return nil end
     local reste = math.max(0, duree - (GetTime() - debut))
     return (("%.1f"):format(reste):gsub("%.", ","))
@@ -207,9 +214,9 @@ end
 
 local function poserZone()
     if not zone then return end
-    local d = duree or vitesseArme()
+    local d = (apercu and demo and demo.duree) or duree or vitesseArme()
     local l = nombre(barre:GetWidth())
-    if not actif() or not d or not l or l <= 0 then
+    if not (actif() or apercu) or not d or not l or l <= 0 then
         zone:Hide(); ligne:Hide()
         return
     end
@@ -237,9 +244,9 @@ local function inscrire(e, unite)
 end
 
 -- Pose la zone sur la barre choisie ; false si celle du jeu n'est pas là.
-local function accrocher()
+local function accrocher(forcerPropre)
     if barre then return true end
-    if R("tirBarre") == "jeu" then
+    if R("tirBarre") == "jeu" and not forcerPropre then
         local f = _G.SwingTimerRangedFrame
         if not (f and f.StatusBar) then return false end
         barre = f.StatusBar
@@ -416,6 +423,75 @@ REACTIONS.DISPLAY_SIZE_CHANGED = poserZone
 
 function Tir.surEvenement(e, ...)
     if actif() and REACTIONS[e] then REACTIONS[e](...) end
+end
+
+-- Aperçu en direct : notre barre, cycles de tir en boucle à la vitesse de
+-- l'arme (2,8 s sans arme), pause courte après chaque tir où la zone pulse.
+Tir.PAUSE_APERCU = 0.6
+
+local function pasApercu()
+    local now = GetTime()
+    local t = now - demo.debut
+    if t < demo.duree then
+        remplir(t / demo.duree)
+        changerDedans(t >= calculerSeuil(demo.duree))
+        if zone then zone:SetAlpha(1) end
+    elseif t < demo.duree + Tir.PAUSE_APERCU then
+        remplir(1)
+        changerDedans(true)
+        if zone and R("tirPulsation") then zone:SetAlpha(0.6 + 0.4 * math.cos((t - demo.duree) * math.pi * 2.5)) end
+    else
+        demo.debut = now
+        demo.duree = vitesseArme() or 2.8
+        poserZone()
+    end
+end
+
+-- Une image : la barre reste visible même si un calcul échoue (erreur notée une fois).
+local erreurApercu
+local function animerApercu()
+    if not (apercu and demo and propre) then return end
+    local ok, err = pcall(pasApercu)
+    if not ok and not erreurApercu then
+        erreurApercu = err
+        if ns.Jeu and ns.Jeu.message then ns.Jeu.message("Aperçu du tir : " .. tostring(err)) end
+    end
+    majPropre()
+end
+
+function Tir.vitrine()
+    if not propre then propre = creerPropre(); habillerPropre() end
+    return propre, "barreTir"
+end
+
+function Tir.apercu(oui)
+    oui = oui and true or false
+    if oui == apercu then return end
+    apercu = oui
+    if oui then
+        Tir.vitrine()
+        if barre ~= propre then
+            if zone then zone:Hide(); ligne:Hide() end
+            barre, zone, ligne = nil, nil, nil
+            accrocher(true)
+        end
+        demo = { debut = GetTime(), duree = vitesseArme() or 2.8 }
+        pcall(poserZone)
+        remplir(0.35)             -- visible tout de suite, avant la première image
+        propre:Show()
+        propre:SetScript("OnUpdate", animerApercu)
+    else
+        demo = nil
+        propre:SetScript("OnUpdate", nil)
+        if zone then zone:SetAlpha(1) end
+        remplir(0)
+        changerDedans(false)
+        -- Retour à la barre choisie (la nôtre ou celle du jeu).
+        if zone then zone:Hide(); ligne:Hide() end
+        barre, zone, ligne = nil, nil, nil
+        if sort then accrocher() end
+        majPropre()
+    end
 end
 
 function Tir.etat()

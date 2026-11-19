@@ -12,13 +12,14 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Auto Equip** | Spots gear upgrades for your class and spec (armor type, weapon DPS, hit and crit ratings) and offers to equip them. Shows the upgrade % in item tooltips. Picks the best quest reward. |
 | **XP Bar** | A clean, movable XP bar with the XP of your finished and ongoing quests, rested XP, XP per hour. |
 | **Auto Loot** | Instant fast loot, loot list, sound when bags are full. |
+| **Junk** | Bags full while looting: offers to throw away the grey item worth the least, with its vendor and auction house price. Never without your click. |
 | **Merchant** | Sells your grey items and repairs your gear at any merchant, no click needed (guild money optional). |
 | **Gear Durability** | A small widget warns you when your gear drops below 20 % (threshold, style and size to taste). |
 | **Auto Spell Ranks** | Replaces old spell ranks on your action bars with the new rank when you learn it. |
 | **Auto Shot / Wand** | Auto shot and wand timer: tells you when to stop moving so the shot is not lost. |
 | **Flight Points** | Every flight point of your faction on the world map, known ones marked. |
 | **Raid Markers** | Puts your raid marker and your friends' markers with one key. |
-| **Swap Layer in group** | Multiboxing with the LayerSwap addon: Swap layer, Leave group, Invite team members (list in the tooltip), they accept on their own. |
+| **Swap Layer in group** | Multiboxing with the LayerSwap addon. Left button: Leave group when grouped, otherwise Swap layer. Right button: Invite team members (list in the tooltip), they accept on their own. |
 | **Spy Ping** | With the Spy addon: click an enemy in the list to target and ping them for your group. Better enemy detection. |
 | **Honorable Kills** | Small movable widget with your honorable kills. Hover it for the guild top, click it for the full guild ranking. |
 | **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 20 m). One press of your Interact key takes it. |

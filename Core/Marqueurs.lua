@@ -112,7 +112,7 @@ Swap.DELAI_CHEF = 1.2     -- chef : mes persos partent d'abord (message « PART 
 Swap.ATTENTE_HOTE = 180   -- après la demande de swap : l'invitation de l'hôte passe seule
 
 -- phase : nil, « parti » (groupe quitté), « demande » (swap demandé)
-local etat = { phase = nil, alts = {}, chef = nil, jusqua = 0, symboles = false }
+local etat = { phase = nil, alts = {}, chef = nil, jusqua = 0 }
 Swap._etat = etat
 
 local function secret(v) return issecretvalue and issecretvalue(v) end
@@ -136,10 +136,11 @@ function Swap.layerSwap()
     return (SlashCmdList and SlashCmdList.LAYERSWAP) or _G.LayerSwapPanelSwapButton
 end
 
--- Bouton 1 : « quitter » (en groupe avec mes persos) ou « demander ».
--- Après le départ, IsInGroup reste vrai un instant : la phase dit la suite.
+-- Bouton de gauche : « quitter » dès qu'on est en groupe (sa team ou celui
+-- de l'hôte), sinon « demander » le swap. Juste après un départ, IsInGroup
+-- reste vrai un instant : la phase (ou l'hôte quitté) dit la suite.
 function Swap.etape()
-    if etat.phase == nil and enGroupe() then return "quitter" end
+    if enGroupe() and etat.phase ~= "parti" and not etat.hoteQuitte then return "quitter" end
     return "demander"
 end
 
@@ -218,22 +219,11 @@ end
 -- est ensuite est celui de l'hôte.
 function Swap.swapDemande() return etat.phase == "demande" or etat.demandeA ~= nil end
 
--- Bouton 2 : « quitter » le groupe de l'hôte (swap demandé, on y est),
--- puis « inviter » la team, puis « symboles » une fois les persos réinvités
--- (poser un symbole demande un clic du joueur : le même bouton s'en charge).
-function Swap.etape2()
-    if etat.symboles and ns.Reglages and ns.Reglages.get("marqueursActif") ~= false then return "symboles" end
-    if Swap.swapDemande() and not etat.hoteQuitte and enGroupe() then return "quitter" end
-    return "inviter"
-end
-
--- Bouton 2, étape « quitter » : on sort du groupe de l'hôte, la team suit.
+-- On sort du groupe de l'hôte (swap demandé, on y est).
 function Swap.quitterHote()
     etat.hoteQuitte = true
     quitterGroupe()
 end
-
-function Swap.symbolesPoses() etat.symboles = false end
 
 -- LayerSwap lit la couche sur les créatures autour (plaques, cible, survol),
 -- deux au moins. Plaques cachées hors combat : on les montre un instant
@@ -361,14 +351,13 @@ function Swap.surGroupeQuitte()
     if Swap.rafraichir then Swap.rafraichir() end
 end
 
--- Bouton 2, étape « inviter » : quitte le groupe de l'hôte s'il y est
--- encore, réinvite les persos retenus. Rend leur nombre.
+-- Bouton de droite : quitte le groupe de l'hôte s'il y est encore,
+-- réinvite les persos retenus. Rend leur nombre.
 function Swap.valider()
     local alts = Swap.aInviter()
     local hote = Swap.swapDemande()
     etat.alts, etat.phase, etat.demandeA, etat.hoteQuitte = {}, nil, nil, nil
     sauver()
-    etat.symboles = #alts > 0
     etat.butin = #alts > 0 and ns.Reglages and ns.Reglages.get("swapButinLibre") ~= false
     local function tous() for _, nom in ipairs(alts) do inviter(nom) end end
     -- Encore groupés entre eux (départ fait sans nous) : le jeu refuserait
@@ -386,15 +375,21 @@ local function apresClic()
     if Swap.rafraichir then Swap.rafraichir() end
 end
 
+-- Bouton de gauche : en groupe, on le quitte (celui de l'hôte, ou celui de
+-- la team qui est prévenue et part aussi) ; sinon on demande le swap.
 function Swap.cliquer()
     if not actif() then return end
-    if Swap.etape() == "quitter" then Swap.quitter() else Swap.demander() end
+    if Swap.etape() == "quitter" then
+        if Swap.swapDemande() then Swap.quitterHote() else Swap.quitter() end
+    else
+        Swap.demander()
+    end
     apresClic()
 end
 
+-- Bouton de droite : inviter la team.
 function Swap.cliquerValider()
     if not actif() then return end
-    if Swap.etape2() == "quitter" then Swap.quitterHote(); apresClic(); return end
     local n = Swap.valider()
     if n == 0 and ns.Jeu and ns.Jeu.message then
         ns.Jeu.message(L["Aucun perso à inviter : ajoute tes persos dans la liste des Marqueurs (ou clique sur « Swap layer » quand tu es groupé avec eux)."])

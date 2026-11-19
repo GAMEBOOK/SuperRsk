@@ -18,7 +18,7 @@ Reglages.DEFAUTS = {
     xpCouleurXP = false, xpCouleurQuetes = false, xpCouleurEnCours = false, xpCouleurRepos = false,
     xpNiveauMax = false, xpResetReload = false, xpMasquerBlizzard = true,
     butinRapide = true, butinAuto = true, butinConfirmerLie = false,
-    butinSonPlein = false, butinSonPeche = true, butinListe = false,
+    butinSonPlein = false, butinSonPeche = true, butinListe = false, butinPoubelle = true,
     rangsAuto = true, rangsMessage = true,
     tirActif = true, tirAffichage = "combat", tirBarre = "superguide", tirLargeur = 220, tirArmement = "auto", tirLatence = true, tirAvance = 0,
     tirCouleur = false, tirOpacite = 0.35, tirPulsation = true,
@@ -54,6 +54,8 @@ local function symbole(n) return ("|TInterface\\TargetingFrame\\UI-RaidTargeting
 -- groupe « Module »).
 Reglages.MODULES = {
     { nom = "autoEquip", titre = "Auto Equip", interrupteur = "proposerEquipement", deplacer = true,
+      apercu = function(oui) if ns.Proposition and ns.Proposition.apercu then ns.Proposition.apercu(oui) end end,
+      vitrine = function() if ns.Proposition and ns.Proposition.vitrine then return ns.Proposition.vitrine() end end,
       desc = L["Propose d'équiper les objets meilleurs que les tiens. Tu choisis jusqu'à quelle qualité les objets « lié quand équipé » sont proposés."],
       options = {
         { cle = "proposerEquipement", type = "case", libelle = L["Proposer les améliorations d'équipement"],
@@ -128,6 +130,13 @@ Reglages.MODULES = {
               info = L["Une liste animée de ce que tu ramasses. Bouton « Déplacer » pour la placer."] },
         } },
       } },
+    { nom = "poubelle", titre = L["Poubelle"], interrupteur = "butinPoubelle", deplacer = true,
+      apercu = function(oui) if ns.Poubelle and ns.Poubelle.apercu then ns.Poubelle.apercu(oui) end end,
+      vitrine = function() if ns.Poubelle and ns.Poubelle.vitrine then return ns.Poubelle.vitrine() end end,
+      desc = L["Pendant le ramassage, sacs pleins : une fenêtre propose l'objet gris qui vaut le moins, avec son prix chez le marchand et à l'hôtel des ventes (dernier scan d'Auctionator). Rien n'est jeté sans ton clic sur « Jeter »."],
+      options = {
+        { cle = "butinPoubelle", type = "case", libelle = L["Proposer de jeter le gris le moins cher quand les sacs sont pleins"] },
+    } },
     { nom = "marchand", titre = L["Marchand"], interrupteur = "marchandActif",
       desc = L["Chez un marchand, tes objets gris sont vendus et ton équipement réparé, sans clic. Maj enfoncé en ouvrant le marchand : rien ne se fait."],
       options = {
@@ -164,13 +173,17 @@ Reglages.MODULES = {
         { cle = "usureMessage", type = "case", libelle = L["Message dans la discussion"] },
     } },
     { nom = "autoRangs", titre = "Auto Spell Ranks", interrupteur = "rangsAuto",
+      apercu = function(oui) if ns.Rangs and ns.Rangs.apercu then ns.Rangs.apercu(oui) end end,
+      vitrine = function() if ns.Rangs and ns.Rangs.vitrine then return ns.Rangs.vitrine() end end,
       desc = L["Garde tes barres d'action sur le plus haut rang de chaque sort : quand tu apprends un nouveau rang, les boutons de l'ancien passent au nouveau, au même endroit (barres de la manette comprises)."],
       options = {
         { cle = "rangsAuto", type = "case", libelle = L["Monter les sorts au plus haut rang"],
           info = L["À la connexion et à chaque sort appris, hors combat. Seulement les boutons de sort : macros, objets et cases vides ne bougent pas. Jamais vers un rang plus bas."] },
         { cle = "rangsMessage", type = "case", libelle = L["Annoncer les changements dans le chat"] },
     } },
-    { nom = "autoTir", titre = "Auto Shot / Wand", interrupteur = "tirActif", deplacer = true,
+    { nom = "autoTir", titre = "Auto Shot / Wand", interrupteur = "tirActif",
+      apercu = function(oui) if ns.Tir and ns.Tir.apercu then ns.Tir.apercu(oui) end end,
+      vitrine = function() if ns.Tir and ns.Tir.vitrine then return ns.Tir.vitrine() end end, deplacer = true,
       boutons = { { texte = L["Créer la macro de tir"], action = function() ns.Tir.creerMacro() end } },
       desc = L["Chasseurs, mages, prêtres et démonistes : une barre se remplit entre deux tirs. Cours tant qu'elle n'est pas dans le rouge, arrête-toi dans le rouge : le tir part sans retard, puis repars."],
       categories = {
@@ -235,7 +248,9 @@ Reglages.MODULES = {
           info = L["Un symbole ne peut être que sur une personne à la fois : le tien passe avant ceux de la liste."] },
     } },
     { nom = "swapGroupe", titre = L["Swap layer en groupe"], interrupteur = "swapGroupeActif", requiert = "LayerSwap", deplacer = true,
-      desc = L["Nécessite l'addon LayerSwap (installé et activé), sans lui les boutons n'apparaissent pas. En multibox, deux boutons déplaçables : « Swap layer » (quitte le groupe de ta team puis demande le swap), puis « Quitter le groupe » (celui de l'hôte, une fois sur la bonne couche), « Inviter la team » (la liste est dans l'infobulle) et « Remettre les symboles ». Tes persos acceptent seuls (SuperRsk doit être sur chacun) et passent sur ta couche en rejoignant le groupe."],
+      apercu = function(oui) if ns.SwapGroupe and ns.SwapGroupe.apercu then ns.SwapGroupe.apercu(oui) end end,
+      vitrine = function() if ns.SwapGroupe and ns.SwapGroupe.vitrine then return ns.SwapGroupe.vitrine() end end,
+      desc = L["Nécessite l'addon LayerSwap (installé et activé), sans lui les boutons n'apparaissent pas. En multibox, deux boutons déplaçables. À gauche : « Quitter le groupe » quand tu es en groupe (ta team est prévenue et part aussi), sinon « Swap layer ». À droite : « Inviter la team » (la liste est dans l'infobulle). Tes persos acceptent seuls (SuperRsk doit être sur chacun) et passent sur ta couche en rejoignant le groupe."],
       options = {
         { cle = "swapGroupeActif", type = "case", libelle = L["Activer le swap layer en groupe"],
           info = L["Sur tes persos aussi : ils acceptent alors seuls l'invitation du main qui vient de partir swapper (15 min), et toujours celles des noms de leur liste de Marqueurs."] },
@@ -255,6 +270,8 @@ Reglages.MODULES = {
           info = L["Le jeu ne donne jamais la position d'un ennemi : le repère va là où TU étais quand Spy l'a détecté, pas là où il est maintenant. TomTom s'il est installé, sinon le repère du jeu."] },
     } },
     { nom = "vh", titre = L["Victoires honorables"], interrupteur = "vhActif", deplacer = true,
+      apercu = function(oui) if ns.VH and ns.VH.apercu then ns.VH.apercu(oui) end end,
+      vitrine = function() if ns.VH and ns.VH.vitrine then return ns.VH.vitrine() end end,
       boutons = { { texte = L["Remettre le widget à sa place"], action = function() ns.VH.recentrer() end } },
       desc = L["Un petit widget déplaçable : tes victoires honorables (et ton rang s'il y en a un). Survole-le pour le classement de ta guilde : partagé entre les membres qui ont SuperRsk, et relevé en passant près des autres (inspection, hors combat). Clique dessus pour le classement complet."],
       options = {

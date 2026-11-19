@@ -473,15 +473,6 @@ end
 function module.construire(p)
     local m = p.def.module
     p.y0 = enTete(p, m.titre, m.desc)
-    -- Bannière d'aperçu : l'élément du module, en direct.
-    if m.vitrine then
-        local t = intitule(p.cadre, L["APERÇU"])
-        t:SetPoint("TOPLEFT", 0, p.y0)
-        p.banniere = C.carte(p.cadre)
-        p.banniere:SetPoint("TOPLEFT", 0, p.y0 - 18)
-        p.banniere:SetSize(W, VITRINE)
-        p.y0 = p.y0 - 18 - VITRINE - 16
-    end
     p.onglets = ONGLETS[m.nom]
     if p.onglets then
         p.boutons = {}
@@ -601,7 +592,8 @@ local deplie = false
 
 -- Aperçu en direct : le module ouvert montre son élément (barre d'XP,
 -- widget…) tant que sa page est affichée.
-local apercuActuel, monte
+local apercuActuel, monte, fixe
+local HAUT_FIXE = 18 + VITRINE + 14   -- libellé, bannière, marge sous l'en-tête fixe
 
 -- L'élément du module (sa vraie barre, son vrai widget) quitte sa place et
 -- s'affiche dans la bannière, réduit s'il est trop large ; il y revient après.
@@ -636,7 +628,7 @@ local function changerApercu(m, p)
     if apercuActuel and apercuActuel.apercu then apercuActuel.apercu(false) end
     apercuActuel = m
     if m and m.apercu then m.apercu(true) end
-    if m and m.vitrine and p and p.banniere then monter(m, p.banniere) end
+    if m and m.vitrine and fixe then monter(m, fixe.carte) end
 end
 
 -- Ouverture et fermeture en fondu, avec un léger zoom à l'ouverture.
@@ -822,6 +814,46 @@ local function creer()
     ascenseur:SetWidth(4)
     ascenseur:Hide()
 
+    -- En-tête fixe des modules qui ont un aperçu : il ne défile pas, les
+    -- réglages passent dessous. Pastille « en direct » qui pulse, et la
+    -- bannière s'illumine un instant à chaque réglage changé.
+    fixe = CreateFrame("Frame", nil, cadre)
+    fixe:SetPoint("TOPLEFT", LATERALE + MARGE, -ENTETE - MARGE)
+    fixe:SetSize(W, HAUT_FIXE)
+    fixe.point = fixe:CreateTexture(nil, "OVERLAY")
+    fixe.point:SetTexture(T.MEDIA .. "RondPlein")
+    fixe.point:SetSize(8, 8)
+    fixe.point:SetPoint("TOPLEFT", 0, -3)
+    fixe.point:SetVertexColor(T.rgb("accent"))
+    local libelle = intitule(fixe, L["APERÇU EN DIRECT"])
+    libelle:SetPoint("TOPLEFT", 14, 0)
+    fixe.carte = C.carte(fixe)
+    fixe.carte:SetPoint("TOPLEFT", 0, -18)
+    fixe.carte:SetSize(W, VITRINE)
+    fixe.lueur = {}
+    for i, pt in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
+                          { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+        local t = fixe.carte:CreateTexture(nil, "OVERLAY", nil, 7)
+        t:SetColorTexture(T.rgb("accent"))
+        t:SetPoint(pt[1]); t:SetPoint(pt[2])
+        if i <= 2 then t:SetHeight(2) else t:SetWidth(2) end
+        t:SetAlpha(0)
+        fixe.lueur[i] = t
+    end
+    local trait = fixe:CreateTexture(nil, "ARTWORK")
+    trait:SetColorTexture(T.rgb("bord"))
+    trait:SetHeight(1)
+    trait:SetPoint("BOTTOMLEFT", 0, 4)
+    trait:SetPoint("BOTTOMRIGHT", 0, 4)
+    fixe:SetScript("OnUpdate", function(self)
+        local t = GetTime and GetTime() or 0
+        self.point:SetAlpha(0.35 + 0.65 * math.abs(math.sin(t * 2.4)))
+        local a = self.flash and math.max(0, 1 - (t - self.flash) / 0.6) or 0
+        for _, l in ipairs(self.lueur) do l:SetAlpha(a) end
+        if a == 0 then self.flash = nil end
+    end)
+    fixe:Hide()
+
     for _, s in ipairs(entrees) do
         if s.page then
             local f = CreateFrame("Frame", nil, defile)
@@ -834,6 +866,7 @@ local function creer()
     -- Un réglage changé ailleurs (/sg lock, Ctrl + molette) : on relit.
     ns.Reglages.ecouter(function()
         if not cadre:IsShown() then return end
+        if fixe:IsShown() then fixe.flash = GetTime and GetTime() or 0 end
         majNav()
         if pages[actuelle] and pages[actuelle].controles then Menu.rafraichir(true) end
     end)
@@ -874,6 +907,11 @@ function Menu.ouvrir(nom, onglet)
         fondu(true)
     end
     cadre:Raise()
+    local avecApercu = p.def.module and p.def.module.vitrine and true or false
+    fixe:SetShown(avecApercu)
+    defile:ClearAllPoints()
+    defile:SetPoint("TOPLEFT", LATERALE + MARGE, -ENTETE - MARGE - (avecApercu and HAUT_FIXE or 0))
+    defile:SetPoint("BOTTOMRIGHT", -MARGE - 10, MARGE)
     changerApercu(p.def.module, p)
     Menu.rafraichir()
 end

@@ -34,7 +34,7 @@ function Proposition.creer()
     titre:SetAllPoints()
     titre:SetWordWrap(false)
     zone:SetScript("OnEnter", function(self)
-        if not courante then return end
+        if not courante or Proposition.enApercu() then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:SetHyperlink(courante.objet.lien)
         GameTooltip:Show()
@@ -46,11 +46,24 @@ function Proposition.creer()
     ligne:SetPoint("TOPRIGHT", zone, "BOTTOMRIGHT", 0, -6)
     ligne:SetWordWrap(false)
 
-    local non = C.bouton(cadre, L["Non"], "texteDoux", function() ns.Equipement.repondre(false) end, 90)
+    local non = C.bouton(cadre, L["Non"], "texteDoux", function()
+        if not Proposition.enApercu() then ns.Equipement.repondre(false) end
+    end, 90)
     non:SetPoint("BOTTOMRIGHT", -12, 10)
-    local oui = C.bouton(cadre, L["Oui"], "vert", function() ns.Equipement.repondre(true) end, 90)
+    local oui = C.bouton(cadre, L["Oui"], "vert", function()
+        if not Proposition.enApercu() then ns.Equipement.repondre(true) end
+    end, 90)
     oui:SetPoint("RIGHT", non, "LEFT", -8, 0)
 
+    -- « +2 en attente » : d'autres fenêtres suivent.
+    local enAttente = C.texte(cadre, "petit", "accent")
+    enAttente:SetPoint("BOTTOMLEFT", 12, 14)
+    ns.File.ecouter(function()
+        local n = ns.File.enAttente()
+        enAttente:SetText(n > 0 and L["+%d en attente"]:format(n) or "")
+    end)
+    -- Fermée (oui, non, objet parti) : la fenêtre suivante prend la place.
+    cadre:SetScript("OnHide", function() if not enApercu then ns.File.fini("proposition") end end)
     cadre:Hide()
 end
 
@@ -62,10 +75,8 @@ function Proposition.pourcent(gain)
     return (t:gsub("[%.,]0( ?%%)$", "%1"))
 end
 
-function Proposition.montrer(p)
+local function afficher(p)
     courante = p
-    if not cadre then return end
-    if not p then cadre:Hide(); return end
     titre:SetText(L["Équiper %s ?"]:format(p.objet.lien))
     local pct = Proposition.pourcent(p.gain or 0)
     if p.remplace then
@@ -74,6 +85,40 @@ function Proposition.montrer(p)
         ligne:SetText(L["+%s · emplacement vide"]:format(pct))
     end
     cadre:Show()
+end
+
+-- Aperçu (page du module) : la fenêtre avec un exemple, boutons sans effet.
+local EXEMPLE = { objet = { lien = "|cff1eff00[Arc long renforcé]|r" }, gain = 0.124,
+                  remplace = { lien = "|cffffffff[Arc court]|r" } }
+local enApercu, avantApercu = false, nil
+
+function Proposition.vitrine() return cadre, "proposition" end
+
+function Proposition.apercu(oui)
+    if not cadre then return end
+    if oui then
+        avantApercu = cadre:IsShown() and courante or nil
+        enApercu = true
+        afficher(EXEMPLE)
+    else
+        enApercu = false
+        if avantApercu then afficher(avantApercu) else courante = nil; cadre:Hide() end
+        avantApercu = nil
+    end
+end
+
+function Proposition.enApercu() return enApercu end
+
+-- Passe par la file d'attente des fenêtres : une seule question à la fois.
+function Proposition.montrer(p)
+    if not cadre then courante = p; return end
+    if not p then
+        courante = nil
+        ns.File.retirer("proposition")
+        if cadre:IsShown() then cadre:Hide() end
+        return
+    end
+    ns.File.demander("proposition", function() afficher(p) end)
 end
 
 ---------------------------------------------------------------------------

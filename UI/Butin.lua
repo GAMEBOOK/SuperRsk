@@ -203,6 +203,8 @@ end
 function REACTIONS.UI_ERROR_MESSAGE(_, msg)
     if not PLEIN[msg] or not etat.enCours then return end
     if etat.cachee then montrerFenetre(true) end
+    -- Sacs pleins (message du jeu, dans la langue du client) : la poubelle propose.
+    if msg == ERR_INV_FULL and ns.Poubelle then ns.Poubelle.surPlein() end
     if msg ~= ERR_LOOT_ROLL_PENDING and R("butinSonPlein") and not etat.sonJoue and not etat.bloque then
         etat.sonJoue = true
         PlaySound(SON_PLEIN, CANAL)

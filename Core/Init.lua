@@ -149,6 +149,7 @@ local function demarrer()
     for e in pairs(ns.Marchand.evenements) do inscrire(e) end
 
     lancer(ns.Usure.creer)
+    lancer(ns.Poubelle.creer)
     for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
     ns.Reglages.ecouter(ns.Usure.appliquer)
 

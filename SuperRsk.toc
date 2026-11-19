@@ -3,7 +3,7 @@
 ## Notes: WoW Forever quality of life toolbox: Auto Equip best gear upgrades, instant fast loot, XP bar with quest XP, auto shot / wand timer, spell rank updater, raid markers, multibox layer swap (LayerSwap), Spy enemy ping, honorable kills guild ranking, FPS boost, no weather. /sg
 ## Notes-frFR: Boîte à outils qualité de vie pour WoW Forever : Auto Equip (meilleur équipement), ramassage instantané, barre d'XP avec XP des quêtes, minuteur de tir auto / baguette, mise à jour des rangs de sorts, marqueurs de raid, swap de couche en multibox (LayerSwap), ping des ennemis Spy, classement des victoires honorables de la guilde, boost FPS, sans météo. /sg
 ## Author: SuperRsk
-## Version: 1.0.5
+## Version: 1.0.6
 ## Category: Miscellaneous
 ## Category-frFR: Divers
 ## Group: SuperRsk
@@ -12,7 +12,7 @@
 ## X-Website: https://github.com/GAMEBOOK/SuperRsk
 ## SavedVariables: SuperGuideDB
 ## SavedVariablesPerCharacter: SuperGuideCharDB
-## OptionalDeps: Spy, TomTom, LayerSwap
+## OptionalDeps: Spy, TomTom, LayerSwap, Auctionator
 
 # --- Bibliotheques -----------------------------------------------------------
 Libs\LibStub\LibStub.lua
@@ -60,12 +60,14 @@ Core\PingSpy.lua
 Core\Tsquid.lua
 Core\Marchand.lua
 Core\Usure.lua
+Core\Poubelle.lua
 Core\Vols.lua
 
 # --- Interface ---------------------------------------------------------------
 UI\Theme.lua
 UI\Controles.lua
 UI\Deplacement.lua
+UI\File.lua
 UI\Menu.lua
 UI\Minimap.lua
 UI\Proposition.lua
@@ -76,8 +78,10 @@ UI\Rangs.lua
 UI\Marqueurs.lua
 UI\Tir.lua
 UI\Usure.lua
+UI\Poubelle.lua
 UI\Vols.lua
 UI\Vols.xml
+UI\Apercus.lua
 
 # --- Pilotage ----------------------------------------------------------------
 Core\Init.lua
