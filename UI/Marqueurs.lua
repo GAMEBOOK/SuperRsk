@@ -89,24 +89,35 @@ function Marqueurs.creer()
 end
 
 ---------------------------------------------------------------------------
--- Swap groupé : le bouton sous le panneau de LayerSwap (ou sous sa barre),
+-- Swap layer en groupe : le bouton sous le panneau de LayerSwap (ou sous sa barre),
 -- et sa touche (Raccourcis > SuperRsk). Décisions dans Core/Marqueurs.lua.
 ---------------------------------------------------------------------------
 
 local Swap = ns.SwapGroupe
 local barre, b1, b2
 
-local TEXTES = { quitter = L["Quitter + swap"], demander = L["Swap !"] }
+local TEXTES = { quitter = L["Swap layer"], demander = L["Swap layer"] }
 local AIDES = {
     quitter = L["Retient tes persos du groupe, les prévient et quitte le groupe. Reclique pour demander le swap."],
     demander = L["Demande un swap à LayerSwap (valide ensuite avec Entrée si la demande part dans la discussion)."],
 }
 
+-- Infobulle du bouton « Inviter la team » : qui sera invité.
+local function aideInviter()
+    local noms = Swap.aInviter()
+    if #noms == 0 then
+        return L["Aucun perso à inviter : ajoute tes persos dans la liste des Marqueurs (ou clique sur « Swap layer » quand tu es groupé avec eux)."]
+    end
+    return L["Invite ta team, qui accepte seule :"] .. "\n" .. table.concat(noms, "\n")
+end
+
 local function aide(b, titre, texte)
     b:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:SetText(self.titre or titre)
-        GameTooltip:AddLine(self.aide or texte, 1, 1, 1, true)
+        local t = self.aide or texte
+        if type(t) == "function" then t = t() end
+        GameTooltip:AddLine(t, 1, 1, 1, true)
         GameTooltip:AddLine(L["Glisser : déplacer."], 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
@@ -161,10 +172,14 @@ function Swap.rafraichir()
         b2.texte:SetText(L["Remettre les symboles"])
         b2.titre, b2.aide = L["Remettre les symboles"], L["Clique quand tes persos ont rejoint le groupe : pose ton symbole et ceux de ta liste."]
         b2:SetAlpha(1)
+    elseif e2 == "quitter" then
+        b2.texte:SetText(L["Quitter le groupe"])
+        b2.titre, b2.aide = L["Quitter le groupe"], L["Tu es sur la bonne couche : quitte le groupe de l'hôte. Ensuite, invite ta team."]
+        b2:SetAlpha(1)
     else
         local n = Swap.nombreAlts()
-        b2.texte:SetText(n > 0 and L["Valider mon layer (%d)"]:format(n) or L["Valider mon layer"])
-        b2.titre, b2.aide = L["Valider mon layer"], L["Tu es sur la bonne couche : quitte le groupe de l'hôte et réinvite tes persos, qui acceptent seuls."]
+        b2.texte:SetText(n > 0 and L["Inviter la team (%d)"]:format(n) or L["Inviter la team"])
+        b2.titre, b2.aide = L["Inviter la team"], aideInviter
         b2:SetAlpha(n > 0 and 1 or 0.5)
     end
     if not InCombatLockdown() then barre:Show() end
@@ -227,7 +242,7 @@ function Swap.creer()
         else Swap.cliquerValider() end
     end)
     aide(b1, TEXTES.quitter, AIDES.quitter)
-    aide(b2, L["Valider mon layer"], "")
+    aide(b2, L["Inviter la team"], aideInviter)
     local f = CreateFrame("Frame")
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:SetScript("OnEvent", function() if attenteCombat then Swap.rafraichir() end end)
@@ -239,8 +254,8 @@ function Swap.creer()
     t:RegisterForClicks("AnyDown")
     t:SetScript("OnClick", function() Swap.cliquer() end)
     t:Hide()
-    _G["BINDING_NAME_CLICK SuperGuideSwapGroupe:LeftButton"] = L["Quitter le groupe + swap"]
-    _G["BINDING_NAME_CLICK SuperGuideSwapValider:LeftButton"] = L["Valider mon layer, puis remettre les symboles"]
+    _G["BINDING_NAME_CLICK SuperGuideSwapGroupe:LeftButton"] = L["Swap layer"]
+    _G["BINDING_NAME_CLICK SuperGuideSwapValider:LeftButton"] = L["Quitter le groupe, inviter la team, puis remettre les symboles"]
 
     Swap.rafraichir()
 end

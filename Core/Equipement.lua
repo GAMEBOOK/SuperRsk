@@ -331,7 +331,7 @@ function Equipement.diagnostic()
     local p = Equipement.poids(classe, brut, niveau) or {}
     local role = jeu.roleSpecialisation and jeu.roleSpecialisation()
     local lignes = {
-        ("Auto Equip : %s niv. %s, " .. L["rôle"] .. " %s, arbre %s (%s)"):format(tostring(classe), tostring(niveau),
+        ("Auto Equip : %s " .. L["niv."] .. " %s, " .. L["rôle"] .. " %s, " .. L["arbre"] .. " %s (%s)"):format(tostring(classe), tostring(niveau),
             tostring(role or "-"), tostring(arbre),
             (d == "points" and L["points de talents"]) or (d == "role" and L["rôle de la spécialisation"])
             or (d == "manuel" and L["choisi dans les réglages"])

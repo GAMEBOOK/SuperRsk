@@ -114,6 +114,12 @@ function Jeu.ecrireCvar(nom, v)
 end
 
 function Jeu.enCombat() return InCombatLockdown and InCombatLockdown() or false end
+
+-- Addon installé et activé (chargé) ?
+function Jeu.addonCharge(nom)
+    local f = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    return f and f(nom) and true or false
+end
 function Jeu.ctrlEnfonce() return IsControlKeyDown and IsControlKeyDown() or false end
 
 -- Repère sur la carte (x, y de 0 à 1) : TomTom s'il est là, sinon celui du jeu, suivi à l'écran.

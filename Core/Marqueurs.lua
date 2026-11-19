@@ -11,7 +11,15 @@ ns.Marqueurs = Marqueurs
 local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 -- Symboles du jeu, dans l'ordre de leur numéro (1 à 8).
-Marqueurs.NOMS = { L["Étoile"], L["Cercle"], L["Losange"], L["Triangle"], L["Lune"], L["Carré"], L["Croix"], L["Crâne"] }
+-- Noms des symboles : ceux du jeu (dans la langue du client), sinon les nôtres.
+local NOMS_FR = { "Étoile", "Cercle", "Losange", "Triangle", "Lune", "Carré", "Croix", "Crâne" }
+local NOMS_EN = { "Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull" }
+Marqueurs.NOMS = {}
+for i = 1, 8 do
+    local jeu = _G["RAID_TARGET_" .. i]
+    Marqueurs.NOMS[i] = (type(jeu) == "string" and jeu ~= "" and jeu)
+        or ((ns.Locale and ns.Locale.francais == false) and NOMS_EN[i] or NOMS_FR[i])
+end
 
 function Marqueurs.icone(i, taille)
     return ("|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_%d:%d|t"):format(i, taille or 16)
@@ -85,7 +93,7 @@ end
 
 
 ---------------------------------------------------------------------------
--- Swap groupé : changer de couche avec LayerSwap quand on joue groupé avec
+-- Swap layer en groupe : changer de couche avec LayerSwap quand on joue groupé avec
 -- ses persos (multibox). LayerSwap refuse de demander en groupe : un bouton,
 -- trois étapes (quitter, demander, « je valide mon layer » qui réinvite).
 -- Avant de quitter, le main prévient ses persos (message d'addon invisible) :
@@ -206,11 +214,23 @@ function Swap.connu(nom)
     return false
 end
 
--- Bouton 2 : « valider », puis « symboles » une fois les persos réinvités
+-- Swap demandé (notre bouton, ou celui de LayerSwap) : le groupe où l'on
+-- est ensuite est celui de l'hôte.
+function Swap.swapDemande() return etat.phase == "demande" or etat.demandeA ~= nil end
+
+-- Bouton 2 : « quitter » le groupe de l'hôte (swap demandé, on y est),
+-- puis « inviter » la team, puis « symboles » une fois les persos réinvités
 -- (poser un symbole demande un clic du joueur : le même bouton s'en charge).
 function Swap.etape2()
     if etat.symboles and ns.Reglages and ns.Reglages.get("marqueursActif") ~= false then return "symboles" end
-    return "valider"
+    if Swap.swapDemande() and not etat.hoteQuitte and enGroupe() then return "quitter" end
+    return "inviter"
+end
+
+-- Bouton 2, étape « quitter » : on sort du groupe de l'hôte, la team suit.
+function Swap.quitterHote()
+    etat.hoteQuitte = true
+    quitterGroupe()
 end
 
 function Swap.symbolesPoses() etat.symboles = false end
@@ -317,7 +337,7 @@ function Swap.demander()
         -- Seul, plaques cachées : on les montre, la demande part au clic suivant.
         etat.phase = "lecture"
         if ns.Jeu and ns.Jeu.message then
-            ns.Jeu.message(L["Je montre les PNJ autour pour que LayerSwap lise ta couche : reclique sur Swap ! dans une seconde."])
+            ns.Jeu.message(L["Je montre les PNJ autour pour que LayerSwap lise ta couche : reclique sur « Swap layer » dans une seconde."])
         end
         return
     elseif cmd then
@@ -326,7 +346,7 @@ function Swap.demander()
     elseif b and b.Click then
         b:Click()
     end
-    etat.phase = "demande"
+    etat.phase, etat.hoteQuitte = "demande", nil
     Swap.noterDemande()
 end
 
@@ -341,11 +361,12 @@ function Swap.surGroupeQuitte()
     if Swap.rafraichir then Swap.rafraichir() end
 end
 
--- Bouton 2 : quitte le groupe de l'hôte s'il y est, réinvite les persos
--- retenus. Rend leur nombre.
+-- Bouton 2, étape « inviter » : quitte le groupe de l'hôte s'il y est
+-- encore, réinvite les persos retenus. Rend leur nombre.
 function Swap.valider()
     local alts = Swap.aInviter()
-    etat.alts, etat.phase, etat.demandeA = {}, nil, nil
+    local hote = Swap.swapDemande()
+    etat.alts, etat.phase, etat.demandeA, etat.hoteQuitte = {}, nil, nil, nil
     sauver()
     etat.symboles = #alts > 0
     etat.butin = #alts > 0 and ns.Reglages and ns.Reglages.get("swapButinLibre") ~= false
@@ -355,8 +376,9 @@ function Swap.valider()
     if C_ChatInfo and C_ChatInfo.SendAddonMessage then
         for _, nom in ipairs(alts) do pcall(C_ChatInfo.SendAddonMessage, Swap.PREFIXE, "PART", "WHISPER", nom) end
     end
-    if enGroupe() then quitterGroupe() end
-    if #alts > 0 then apres(Swap.DELAI_INVITE, tous) end
+    -- Déjà groupé avec la team (pas dans un groupe d'hôte) : on y reste.
+    if hote and enGroupe() then quitterGroupe() end
+    if #alts > 0 then apres((hote and Swap.DELAI_INVITE) or 0.1, tous) end
     return #alts
 end
 
@@ -372,9 +394,10 @@ end
 
 function Swap.cliquerValider()
     if not actif() then return end
+    if Swap.etape2() == "quitter" then Swap.quitterHote(); apresClic(); return end
     local n = Swap.valider()
     if n == 0 and ns.Jeu and ns.Jeu.message then
-        ns.Jeu.message(L["Aucun perso à inviter : ajoute tes persos dans la liste des Marqueurs (ou clique sur « Quitter + swap » quand tu es groupé avec eux)."])
+        ns.Jeu.message(L["Aucun perso à inviter : ajoute tes persos dans la liste des Marqueurs (ou clique sur « Swap layer » quand tu es groupé avec eux)."])
     end
     apresClic()
 end
@@ -390,7 +413,7 @@ function Swap.surMessage(prefixe, msg, canal, envoyeur)
     etat.chef, etat.jusqua = k, maintenant() + Swap.DUREE
     if enGroupe() then
         quitterGroupe()
-        if ns.Jeu and ns.Jeu.message then ns.Jeu.message(L["%s part changer de couche : je quitte le groupe (Swap groupé)."]:format(envoyeur)) end
+        if ns.Jeu and ns.Jeu.message then ns.Jeu.message(L["%s part changer de couche : je quitte le groupe (Swap layer en groupe)."]:format(envoyeur)) end
     end
 end
 
@@ -441,7 +464,7 @@ end
 function Swap.surInvitation(nom)
     if not Swap.accepte(nom) then return false end
     if AcceptGroup then AcceptGroup() end
-    if ns.Jeu and ns.Jeu.message then ns.Jeu.message(L["Invitation de %s acceptée (Swap groupé)."]:format(nom)) end
+    if ns.Jeu and ns.Jeu.message then ns.Jeu.message(L["Invitation de %s acceptée (Swap layer en groupe)."]:format(nom)) end
     fermerFenetre()
     -- Une confirmation peut s'ouvrir un peu après l'acceptation.
     for _, t in ipairs({ 0.1, 0.5, 1, 2 }) do apres(t, fermerFenetre) end

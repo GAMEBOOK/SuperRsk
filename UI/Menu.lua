@@ -143,6 +143,8 @@ end
 local accueil = {}
 
 local function resumeModule(m, actif)
+    local manque = ns.Reglages.manquant and ns.Reglages.manquant(m)
+    if manque then return L["Nécessite %s"]:format(manque), "orange" end
     if not actif then return L["Coupé"], "textePale" end
     return L["Actif"], "vert"
 end

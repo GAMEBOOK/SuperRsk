@@ -250,6 +250,15 @@ local function icone()
     return "Interface\\Icons\\INV_BannerPVP_02", false
 end
 
+-- « 1.  Nom (toi) vu le 12/11 » : rang en couleur de médaille, nom en couleur de classe.
+local function gaucheClassement(i, e)
+    local medaille = (i == 1 and "|cffffd100") or (i == 2 and "|cffc0c0c0") or (i == 3 and "|cffcd7f32") or "|cff9aa3b2"
+    local gauche = medaille .. i .. ".|r  |c" .. couleurClasse(e.classe) .. e.nom .. "|r"
+    if e.moi then gauche = gauche .. " |cff4fd8ff" .. L["(toi)"] .. "|r" end
+    if e.vu and date then gauche = gauche .. " |cff6f7889" .. L["vu le %s"]:format(date("%d/%m", e.vu)) .. "|r" end
+    return gauche
+end
+
 local function infobulle(self)
     local T = ns.Theme
     local m = VH.moi()
@@ -269,11 +278,7 @@ local function infobulle(self)
         for i, e in ipairs(l) do if e.moi then maPlace = i end end
         for i = 1, math.min(top, #l) do
             local e = l[i]
-            local medaille = (i == 1 and "|cffffd100") or (i == 2 and "|cffc0c0c0") or (i == 3 and "|cffcd7f32") or "|cff9aa3b2"
-            local gauche = medaille .. i .. ".|r  |c" .. couleurClasse(e.classe) .. e.nom .. "|r"
-            if e.moi then gauche = gauche .. " |cff4fd8ff" .. L["(toi)"] .. "|r" end
-            if e.vu and date then gauche = gauche .. " |cff6f7889" .. L["vu le %s"]:format(date("%d/%m", e.vu)) .. "|r" end
-            GameTooltip:AddDoubleLine(gauche, VH.nombre(e.total), 1, 1, 1, 1, 1, 1)
+            GameTooltip:AddDoubleLine(gaucheClassement(i, e), VH.nombre(e.total), 1, 1, 1, 1, 1, 1)
         end
         if maPlace and maPlace > top then
             GameTooltip:AddDoubleLine("|cff9aa3b2" .. maPlace .. ".|r  |cff4fd8ff" .. L["toi"] .. "|r",
@@ -284,8 +289,111 @@ local function infobulle(self)
         end
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L["Glisser : déplacer."], 0.5, 0.5, 0.5)
+    GameTooltip:AddLine(L["Clic : classement complet. Glisser : déplacer."], 0.5, 0.5, 0.5)
     GameTooltip:Show()
+end
+
+-- Liste complète (clic sur le widget) --------------------------------------
+
+local liste
+local LIGNE_VH = 18
+local derniereDemande = -1000
+VH.RELANCE = 60   -- au plus une demande à la guilde par minute en ouvrant la liste
+
+local function classementVisible()
+    return guilde() and ns.Reglages.get("vhGuilde") ~= false
+end
+
+local function ligneListe(i)
+    local r = liste.lignes[i]
+    if r then return r end
+    r = CreateFrame("Frame", nil, liste.contenu)
+    r:SetSize(liste.contenu:GetWidth(), LIGNE_VH)
+    r:SetPoint("TOPLEFT", 0, -(i - 1) * LIGNE_VH)
+    r.gauche = ns.Controles.texte(r, "petit", "texte")
+    r.gauche:SetPoint("LEFT", 4, 0)
+    r.droite = ns.Controles.texte(r, "petit", "texte")
+    r.droite:SetPoint("RIGHT", -4, 0)
+    liste.lignes[i] = r
+    return r
+end
+
+local function remplirListe()
+    local l = classementVisible() and VH.classement() or {}
+    local m = VH.moi()
+    liste.sous:SetText(classementVisible() and L["Guilde : %d joueur(s)"]:format(#l)
+        or L["Toi : %s au total, %s aujourd'hui"]:format(VH.nombre(m.total), VH.nombre(m.jour)))
+    for i, e in ipairs(l) do
+        local r = ligneListe(i)
+        r.gauche:SetText(gaucheClassement(i, e))
+        r.droite:SetText(VH.nombre(e.total))
+        r:Show()
+    end
+    for i = #l + 1, #liste.lignes do liste.lignes[i]:Hide() end
+    liste.contenu:SetHeight(math.max(1, #l * LIGNE_VH))
+    if not classementVisible() then
+        liste.vide:SetText(L["Le classement de la guilde demande une guilde et l'option « Partager avec ma guilde »."])
+        liste.vide:Show()
+    elseif #l <= 1 then
+        liste.vide:SetText(L["Les membres qui ont SuperRsk apparaissent en se connectant ; les autres quand tu passes près d'eux."])
+        liste.vide:Show()
+    else
+        liste.vide:Hide()
+    end
+end
+
+local function creerListe()
+    local T, C = ns.Theme, ns.Controles
+    liste = CreateFrame("Frame", "SuperGuideVHListe", UIParent)
+    liste:SetSize(270, 340)
+    liste:SetFrameStrata("DIALOG")
+    liste:SetClampedToScreen(true)
+    liste:EnableMouse(true)
+    T.fond(liste, "panneau", 0.96, "bordFort")
+    liste.titre = C.texte(liste, "texte", "texte")
+    liste.titre:SetPoint("TOPLEFT", 12, -10)
+    liste.titre:SetText(L["Victoires honorables"])
+    liste.sous = C.texte(liste, "petit", "accent")
+    liste.sous:SetPoint("TOPLEFT", liste.titre, "BOTTOMLEFT", 0, -4)
+    local fermer = C.bouton(liste, "X", "texteDoux", function() liste:Hide() end, 24)
+    fermer:SetPoint("TOPRIGHT", -8, -8)
+    local defile = CreateFrame("ScrollFrame", nil, liste)
+    defile:SetPoint("TOPLEFT", 8, -50)
+    defile:SetPoint("BOTTOMRIGHT", -8, 10)
+    liste.contenu = CreateFrame("Frame", nil, defile)
+    liste.contenu:SetSize(254, 1)
+    defile:SetScrollChild(liste.contenu)
+    defile:EnableMouseWheel(true)
+    defile:SetScript("OnMouseWheel", function(self, d)
+        local max = math.max(0, liste.contenu:GetHeight() - self:GetHeight())
+        self:SetVerticalScroll(math.min(max, math.max(0, self:GetVerticalScroll() - d * LIGNE_VH * 3)))
+    end)
+    liste.vide = C.texte(liste, "petit", "texteDoux")
+    liste.vide:SetPoint("BOTTOMLEFT", 12, 12)
+    liste.vide:SetPoint("BOTTOMRIGHT", -12, 12)
+    liste.lignes = {}
+    liste:Hide()
+    if UISpecialFrames then table.insert(UISpecialFrames, "SuperGuideVHListe") end
+end
+
+-- Clic sur le widget : ouvre ou ferme la liste, sous le widget (au-dessus
+-- s'il est trop bas). Demande les derniers chiffres à la guilde.
+function VH.basculerListe()
+    if not widget then return end
+    if not liste then creerListe() end
+    if liste:IsShown() then liste:Hide(); return end
+    liste:ClearAllPoints()
+    if (widget:GetBottom() or 1000) < 360 then
+        liste:SetPoint("BOTTOM", widget, "TOP", 0, 4)
+    else
+        liste:SetPoint("TOP", widget, "BOTTOM", 0, -4)
+    end
+    remplirListe()
+    liste:Show()
+    if classementVisible() and maintenant() - derniereDemande >= VH.RELANCE then
+        derniereDemande = maintenant()
+        envoyer("Q")
+    end
 end
 
 function VH.rafraichir()
@@ -298,6 +406,7 @@ function VH.rafraichir()
     widget:SetWidth(36 + math.max(widget.texte:GetStringWidth() or 30, 20) + (m.jour > 0 and ((widget.jour:GetStringWidth() or 0) + 6) or 0) + 10)
     widget:Show()
     if GameTooltip:IsOwned(widget) then infobulle(widget) end
+    if liste and liste:IsShown() then remplirListe() end
 end
 
 local function placer()
@@ -344,7 +453,14 @@ function VH.creer()
     widget.jour:SetPoint("LEFT", widget.texte, "RIGHT", 6, 0)
     placer()
     widget:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    widget:RegisterForClicks("LeftButtonUp")
+    widget:SetScript("OnClick", function(self)
+        if self.finGlisser and GetTime() - self.finGlisser < 0.3 then return end
+        GameTooltip:Hide()
+        VH.basculerListe()
+    end)
     widget:SetScript("OnDragStop", function(self)
+        self.finGlisser = GetTime()
         self:StopMovingOrSizing()
         local point, _, _, x, y = self:GetPoint()
         SuperGuideDB = SuperGuideDB or {}

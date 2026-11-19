@@ -16,9 +16,9 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Auto Shot / Wand** | Auto shot and wand timer: tells you when to stop moving so the shot is not lost. |
 | **Flight Points** | Every flight point of your faction on the world map, known ones marked. |
 | **Raid Markers** | Puts your raid marker and your friends' markers with one key. |
-| **Group Swap** | Multiboxing with the LayerSwap addon: leave, swap layer, invite your characters back, they accept on their own. |
+| **Swap Layer in group** | Multiboxing with the LayerSwap addon: Swap layer, Leave group, Invite team members (list in the tooltip), they accept on their own. |
 | **Spy Ping** | With the Spy addon: click an enemy in the list to target and ping them for your group. Better enemy detection. |
-| **Honorable Kills** | Small movable widget with your honorable kills and your guild's ranking. |
+| **Honorable Kills** | Small movable widget with your honorable kills. Hover it for the guild top, click it for the full guild ranking. |
 | **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 20 m). One press of your Interact key takes it. |
 | **Boost FPS** | One click graphics settings for more FPS and a sharper picture. Your previous settings come back when you turn it off. |
 | **Weather and Fog** | Removes rain, snow, sandstorms and fog. |
@@ -29,6 +29,13 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 1. Download `SuperRsk-x.y.z.zip` from the [latest release](https://github.com/GAMEBOOK/SuperRsk/releases/latest).
 2. Unzip it into `World of Warcraft\_forever_\Interface\AddOns\` (you get a `SuperRsk` folder).
 3. Restart the game, then type `/sg`.
+
+## Optional addons
+
+Two modules need another addon, SuperRsk tells you in game when one is missing:
+
+- **Spy Ping** needs **Spy**.
+- **Swap Layer in group** needs **LayerSwap**.
 
 ## Commands
 

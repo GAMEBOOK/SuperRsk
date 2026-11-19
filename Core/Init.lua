@@ -62,6 +62,34 @@ function ns.purgerAnciennes(compte, perso)
     for _, k in ipairs(ANCIENS_PERSO) do perso[k] = nil end
 end
 
+-- Au lancement : addons à installer pour profiter de tous les modules.
+-- Dit une fois ; redit seulement si un nouvel addon vient à manquer.
+function ns.signalerDependances(db)
+    local manque = ns.Reglages.dependancesManquantes()
+    local deja = type(db.depsSignales) == "table" and db.depsSignales or {}
+    local suivants, nouveau, morceaux = {}, false, {}
+    for _, d in ipairs(manque) do
+        suivants[d.addon] = true
+        if not deja[d.addon] then nouveau = true end
+        morceaux[#morceaux + 1] = L["%s (module %s)"]:format(d.addon, table.concat(d.modules, ", "))
+    end
+    db.depsSignales = suivants
+    if not nouveau then return false end
+    ns.Jeu.message(L["Pour profiter de tous les modules, installe aussi : %s. Disponibles sur CurseForge."]:format(table.concat(morceaux, ", ")))
+    return true
+end
+
+-- Un module allumé sans l'addon dont il a besoin : on le dit tout de suite.
+function ns.rappelerDependance(cle, v)
+    if v ~= true then return end
+    for _, m in ipairs(ns.Reglages.MODULES) do
+        local a = m.interrupteur == cle and ns.Reglages.manquant(m)
+        if a then
+            ns.Jeu.message(L["%s a besoin de l'addon %s : installe-le et active-le, sinon ce module ne fait rien."]:format(m.titre, a))
+        end
+    end
+end
+
 local function demarrer()
     SuperGuideDB = SuperGuideDB or {}
     SuperGuideCharDB = SuperGuideCharDB or {}
@@ -117,6 +145,9 @@ local function demarrer()
 
     lancer(ns.Vols.creer)
     ns.Reglages.ecouter(ns.Vols.appliquer)
+
+    ns.Reglages.ecouter(ns.rappelerDependance)
+    lancer(function() ns.signalerDependances(SuperGuideDB) end)
 
     -- Section des raccourcis clavier (Échap > Raccourcis > SuperRsk).
     BINDING_HEADER_SUPERGUIDE = "SuperRsk"

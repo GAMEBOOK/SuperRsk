@@ -194,15 +194,15 @@ Reglages.MODULES = {
           libelle = L["Mon symbole"],
           info = L["Un symbole ne peut être que sur une personne à la fois : le tien passe avant ceux de la liste."] },
     } },
-    { nom = "swapGroupe", titre = L["Swap groupé"], interrupteur = "swapGroupeActif",
-      desc = L["Nécessite l'addon LayerSwap (installé et activé), sans lui les boutons n'apparaissent pas. En multibox : deux boutons déplaçables, « Quitter + swap » (quitte le groupe puis demande le swap) et « Valider mon layer » (réinvite tes persos). Ils acceptent seuls (SuperRsk doit être sur chacun) et passent sur ta couche en rejoignant le groupe."],
+    { nom = "swapGroupe", titre = L["Swap layer en groupe"], interrupteur = "swapGroupeActif", requiert = "LayerSwap",
+      desc = L["Nécessite l'addon LayerSwap (installé et activé), sans lui les boutons n'apparaissent pas. En multibox, deux boutons déplaçables : « Swap layer » (quitte le groupe de ta team puis demande le swap), puis « Quitter le groupe » (celui de l'hôte, une fois sur la bonne couche), « Inviter la team » (la liste est dans l'infobulle) et « Remettre les symboles ». Tes persos acceptent seuls (SuperRsk doit être sur chacun) et passent sur ta couche en rejoignant le groupe."],
       options = {
-        { cle = "swapGroupeActif", type = "case", libelle = L["Activer le swap groupé"],
+        { cle = "swapGroupeActif", type = "case", libelle = L["Activer le swap layer en groupe"],
           info = L["Sur tes persos aussi : ils acceptent alors seuls l'invitation du main qui vient de partir swapper (15 min), et toujours celles des noms de leur liste de Marqueurs."] },
         { cle = "swapButinLibre", type = "case", libelle = L["Butin en accès libre au regroupement"],
-          info = L["Dès que tes persos ont rejoint le groupe après « Valider mon layer », le butin passe en accès libre (tu dois être chef)."] },
+          info = L["Dès que tes persos ont rejoint le groupe après « Inviter la team », le butin passe en accès libre (tu dois être chef)."] },
     } },
-    { nom = "spyPing", titre = "Spy Ping", interrupteur = "spyPing",
+    { nom = "spyPing", titre = "Spy Ping", interrupteur = "spyPing", requiert = "Spy",
       desc = L["Avec l'addon Spy : un clic sur un ennemi de sa liste le cible et pose un ping dessus, visible par ton groupe. Le jeu ne laisse pas un addon pinger seul : c'est ton clic qui le déclenche."],
       options = {
         { cle = "spyPing", type = "case", libelle = L["Pinger l'ennemi cliqué dans Spy"],
@@ -216,10 +216,10 @@ Reglages.MODULES = {
     } },
     { nom = "vh", titre = L["Victoires honorables"], interrupteur = "vhActif",
       boutons = { { texte = L["Recentrer le widget"], action = function() ns.VH.recentrer() end } },
-      desc = L["Un petit widget déplaçable : tes victoires honorables (et ton rang s'il y en a un). Survole-le pour le classement de ta guilde : partagé entre les membres qui ont SuperRsk, et relevé en passant près des autres (inspection, hors combat)."],
+      desc = L["Un petit widget déplaçable : tes victoires honorables (et ton rang s'il y en a un). Survole-le pour le classement de ta guilde : partagé entre les membres qui ont SuperRsk, et relevé en passant près des autres (inspection, hors combat). Clique dessus pour le classement complet."],
       options = {
         { cle = "vhActif", type = "case", libelle = L["Afficher le widget"],
-          info = L["Glisse-le où tu veux. Survol : aujourd'hui, au total, et le classement de la guilde."] },
+          info = L["Glisse-le où tu veux. Survol : aujourd'hui, au total, et le classement de la guilde. Clic : le classement complet."] },
         { cle = "vhGuilde", type = "case", libelle = L["Partager avec ma guilde"],
           info = L["Envoie tes victoires honorables aux membres de ta guilde qui ont SuperRsk, et reçoit les leurs. Coupé : tu ne vois plus que les tiennes."] },
         { cle = "vhTop", type = "choix", valeurs = { 5, 10, 20 }, noms = { "5", "10", "20" },
@@ -290,6 +290,32 @@ function Reglages.module(nom)
     for _, m in ipairs(Reglages.MODULES) do
         if m.nom == nom then return m end
     end
+end
+
+-- Addon dont ce module a besoin (champ « requiert ») s'il n'est pas chargé,
+-- sinon nil.
+function Reglages.manquant(m)
+    if not (m and m.requiert) then return nil end
+    local jeu = ns.Jeu
+    if jeu and jeu.addonCharge and jeu.addonCharge(m.requiert) then return nil end
+    return m.requiert
+end
+
+-- Addons manquants, chacun avec les modules qu'il fait marcher :
+-- { { addon = "Spy", modules = { "Spy Ping" } }, … } dans l'ordre des modules.
+function Reglages.dependancesManquantes()
+    local liste, index = {}, {}
+    for _, m in ipairs(Reglages.MODULES) do
+        local a = Reglages.manquant(m)
+        if a then
+            if not index[a] then
+                index[a] = { addon = a, modules = {} }
+                liste[#liste + 1] = index[a]
+            end
+            table.insert(index[a].modules, m.titre)
+        end
+    end
+    return liste
 end
 
 local ecouteurs = {}
