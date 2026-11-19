@@ -155,7 +155,11 @@ function BarreXP.creer()
     cadre = CreateFrame("Frame", "SuperGuideBarreXP", UIParent)
     cadre:SetClampedToScreen(true)
     cadre:SetSize(R("barreXPLargeur"), H_BARRE)
-    ns.Deplacement.inscrire(cadre, L["Barre d'XP"], "barreXP", { "BOTTOM", 0, 140 })
+    ns.Deplacement.inscrire(cadre, L["Barre d'XP"], "barreXP", { "TOP", 0, -34 })
+    cadre.etiquette = C.texte(cadre, "petit", "accent")
+    cadre.etiquette:SetPoint("BOTTOM", cadre, "TOP", 0, 18)
+    cadre.etiquette:SetText(L["APERÇU"])
+    cadre.etiquette:Hide()
 
     barre = CreateFrame("Frame", nil, cadre)
     barre:SetHeight(H_BARRE)
@@ -231,7 +235,20 @@ local function poser(tex, debut, frac, largeur)
     tex:Show()
 end
 
+-- Aperçu : la page du module est ouverte, la barre se montre même coupée
+-- ou au niveau maximum, avec une étiquette.
+local apercu = false
+
+-- Cadre montré dans la bannière d'aperçu du menu, et sa clé de position.
+function BarreXP.vitrine() return cadre, "barreXP" end
+
+function BarreXP.apercu(oui)
+    apercu = oui and true or false
+    BarreXP.maj()
+end
+
 function BarreXP.visible()
+    if apercu then return true end
     if not R("barreXP") then return false end
     return ns.Jeu.niveau() < ns.Jeu.niveauMax() or R("xpNiveauMax")
 end
@@ -319,6 +336,7 @@ function BarreXP.maj()
             BarreXP.nombre(parHeure, sep)))
     end
 
+    cadre:SetAlpha((apercu and not R("barreXP")) and 0.6 or 1)
     cadre:Show()
 end
 

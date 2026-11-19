@@ -1,5 +1,4 @@
--- Thème « interface v2 » (mêmes jetons que reader/interface/styles/v2-base.css
--- de SuperKili) : couleurs, police Archivo, icônes Lucide, fonds arrondis.
+-- Thème « interface v2 » : couleurs, police Archivo, icônes Lucide, fonds arrondis.
 
 local ADDON, ns = ...
 

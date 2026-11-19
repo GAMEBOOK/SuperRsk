@@ -32,6 +32,9 @@ Reglages.DEFAUTS = {
     vhActif = true, vhGuilde = true, vhTop = 10,
     tsquidActif = false, tsquidCritSon = true, tsquidCanal = "Master",
     softInteract = true,
+    marchandActif = true, marchandVendre = true, marchandReparer = true, marchandGuilde = false, marchandMessage = true,
+    usureActif = true, usureSeuil = 20, usureStyle = "icone", usureTaille = 1, usureSon = true, usureMessage = true,
+    usureToujours = false, usureNom = false, usureFond = 0.92, usureLibelle = true, usureTexteLibelle = "",
     boostFPS = false, meteoActif = false, sansMeteo = true, sansBrouillard = true,
 }
 
@@ -50,7 +53,7 @@ local function symbole(n) return ("|TInterface\\TargetingFrame\\UI-RaidTargeting
 -- Modules : chacun a sa page dans le menu (barre latérale,
 -- groupe « Module »).
 Reglages.MODULES = {
-    { nom = "autoEquip", titre = "Auto Equip", interrupteur = "proposerEquipement",
+    { nom = "autoEquip", titre = "Auto Equip", interrupteur = "proposerEquipement", deplacer = true,
       desc = L["Propose d'équiper les objets meilleurs que les tiens. Tu choisis jusqu'à quelle qualité les objets « lié quand équipé » sont proposés."],
       options = {
         { cle = "proposerEquipement", type = "case", libelle = L["Proposer les améliorations d'équipement"],
@@ -66,6 +69,8 @@ Reglages.MODULES = {
           info = L["Quand une quête propose plusieurs récompenses : la meilleure pour toi est sélectionnée (sinon la plus chère à revendre). Tu cliques « Terminer »."] },
     } },
     { nom = "barreXP", titre = L["Barre d'XP"], interrupteur = "barreXP", deplacer = true,
+      apercu = function(oui) if ns.BarreXP and ns.BarreXP.apercu then ns.BarreXP.apercu(oui) end end,
+      vitrine = function() if ns.BarreXP and ns.BarreXP.vitrine then return ns.BarreXP.vitrine() end end,
       desc = L["Une barre d'XP à part : glisse-la pour la déplacer. En orange, l'XP des quêtes à rendre ; en bleu, le repos."],
       categories = {
         { titre = L["Barre"], options = {
@@ -123,6 +128,41 @@ Reglages.MODULES = {
               info = L["Une liste animée de ce que tu ramasses. Bouton « Déplacer » pour la placer."] },
         } },
       } },
+    { nom = "marchand", titre = L["Marchand"], interrupteur = "marchandActif",
+      desc = L["Chez un marchand, tes objets gris sont vendus et ton équipement réparé, sans clic. Maj enfoncé en ouvrant le marchand : rien ne se fait."],
+      options = {
+        { cle = "marchandActif", type = "case", libelle = L["Activer"] },
+        { cle = "marchandVendre", type = "case", libelle = L["Vendre les objets gris"],
+          info = L["Seulement les objets de qualité médiocre (gris) qui se vendent."] },
+        { cle = "marchandReparer", type = "case", libelle = L["Réparer l'équipement"],
+          info = L["Tout ce que tu portes et ce qui est dans tes sacs, si le marchand sait réparer."] },
+        { cle = "marchandGuilde", type = "case", libelle = L["Payer avec l'argent de la guilde si possible"],
+          info = L["Si ta guilde te le permet ; sinon c'est ton or."] },
+        { cle = "marchandMessage", type = "case", libelle = L["Résumé dans la discussion"],
+          info = L["Combien de gris vendus, pour combien, et le prix de la réparation."] },
+    } },
+    { nom = "usure", titre = L["Usure de l'équipement"], interrupteur = "usureActif", deplacer = true,
+      apercu = function(oui) if ns.Usure and ns.Usure.apercu then ns.Usure.apercu(oui) end end,
+      vitrine = function() if ns.Usure and ns.Usure.vitrine then return ns.Usure.vitrine() end end,
+      desc = L["Un petit widget apparaît quand une pièce de ton équipement passe sous le seuil, avec un son et un message une seule fois. Il disparaît après réparation. Pendant que tu règles le module, un aperçu reste affiché."],
+      options = {
+        { cle = "usureActif", type = "case", libelle = L["Activer"] },
+        { cle = "usureSeuil", type = "choix", valeurs = { 10, 20, 30, 50 }, noms = { "10 %", "20 %", "30 %", "50 %" },
+          libelle = L["Prévenir sous"] },
+        { cle = "usureStyle", type = "choix", valeurs = { "icone", "barre", "texte" },
+          noms = { L["Icône"], L["Barre"], L["Texte"] }, libelle = L["Apparence"] },
+        { cle = "usureTaille", type = "curseur", min = 0.7, max = 1.6, pas = 0.1, libelle = L["Taille"] },
+        { cle = "usureFond", type = "curseur", min = 0, max = 1, pas = 0.05, libelle = L["Opacité du fond"] },
+        { cle = "usureLibelle", type = "case", libelle = L["Afficher le libellé"],
+          info = L["Le mot devant le pourcentage (style Texte). Coupé : seulement le pourcentage."] },
+        { cle = "usureTexteLibelle", type = "texte", max = 24, libelle = L["Libellé personnalisé"],
+          indice = L["Équipement"], info = L["Le mot de ton choix ; vide : « Équipement »."] },
+        { cle = "usureNom", type = "case", libelle = L["Nom de la pièce la plus usée"] },
+        { cle = "usureToujours", type = "case", libelle = L["Toujours afficher"],
+          info = L["Le widget reste visible même quand tout va bien (en vert au-dessus du seuil)."] },
+        { cle = "usureSon", type = "case", libelle = L["Son d'alerte"] },
+        { cle = "usureMessage", type = "case", libelle = L["Message dans la discussion"] },
+    } },
     { nom = "autoRangs", titre = "Auto Spell Ranks", interrupteur = "rangsAuto",
       desc = L["Garde tes barres d'action sur le plus haut rang de chaque sort : quand tu apprends un nouveau rang, les boutons de l'ancien passent au nouveau, au même endroit (barres de la manette comprises)."],
       options = {
@@ -194,7 +234,7 @@ Reglages.MODULES = {
           libelle = L["Mon symbole"],
           info = L["Un symbole ne peut être que sur une personne à la fois : le tien passe avant ceux de la liste."] },
     } },
-    { nom = "swapGroupe", titre = L["Swap layer en groupe"], interrupteur = "swapGroupeActif", requiert = "LayerSwap",
+    { nom = "swapGroupe", titre = L["Swap layer en groupe"], interrupteur = "swapGroupeActif", requiert = "LayerSwap", deplacer = true,
       desc = L["Nécessite l'addon LayerSwap (installé et activé), sans lui les boutons n'apparaissent pas. En multibox, deux boutons déplaçables : « Swap layer » (quitte le groupe de ta team puis demande le swap), puis « Quitter le groupe » (celui de l'hôte, une fois sur la bonne couche), « Inviter la team » (la liste est dans l'infobulle) et « Remettre les symboles ». Tes persos acceptent seuls (SuperRsk doit être sur chacun) et passent sur ta couche en rejoignant le groupe."],
       options = {
         { cle = "swapGroupeActif", type = "case", libelle = L["Activer le swap layer en groupe"],
@@ -214,8 +254,8 @@ Reglages.MODULES = {
         { cle = "spyWay", type = "case", libelle = L["Repère sur le lieu de la rencontre"],
           info = L["Le jeu ne donne jamais la position d'un ennemi : le repère va là où TU étais quand Spy l'a détecté, pas là où il est maintenant. TomTom s'il est installé, sinon le repère du jeu."] },
     } },
-    { nom = "vh", titre = L["Victoires honorables"], interrupteur = "vhActif",
-      boutons = { { texte = L["Recentrer le widget"], action = function() ns.VH.recentrer() end } },
+    { nom = "vh", titre = L["Victoires honorables"], interrupteur = "vhActif", deplacer = true,
+      boutons = { { texte = L["Remettre le widget à sa place"], action = function() ns.VH.recentrer() end } },
       desc = L["Un petit widget déplaçable : tes victoires honorables (et ton rang s'il y en a un). Survole-le pour le classement de ta guilde : partagé entre les membres qui ont SuperRsk, et relevé en passant près des autres (inspection, hors combat). Clique dessus pour le classement complet."],
       options = {
         { cle = "vhActif", type = "case", libelle = L["Afficher le widget"],
@@ -226,7 +266,7 @@ Reglages.MODULES = {
           libelle = L["Joueurs dans le classement"] },
     } },
     { nom = "softInteract", titre = L["Interaction rapide"], interrupteur = "softInteract",
-      desc = L["Comme dans SuperKili : le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
+      desc = L["Le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
       options = {
         { cle = "softInteract", type = "case", libelle = L["Viser les objets autour de moi"],
           info = L["Ciblage souple sur 360°, 20 m, objets compris (bouchon de pêche aussi), icône au-dessus de l'objet visé. Sans touche « Interagir avec la cible », rien ne se prend : assigne-la dans Options > Raccourcis."] },
@@ -247,7 +287,8 @@ Reglages.MODULES = {
           info = L["Le son suit le volume de ce canal (Options du jeu > Son). Général : toujours entendu tant que le son du jeu est allumé. Effets : baisse avec les bruitages. Musique : se coupe si tu coupes la musique."] },
     } },
     { nom = "boostFPS", titre = "Boost FPS", interrupteur = "boostFPS",
-      desc = L["Règle tes graphismes pour plus d'images par seconde et une image nette (la même liste qu'EllesmereUI). Tes réglages d'avant sont gardés : coupe le module et ils reviennent."],
+      desc = L["Règle tes graphismes pour plus d'images par seconde et une image nette. Tes réglages d'avant sont gardés : coupe le module et ils reviennent."],
+      details = function() return ns.Graphismes and ns.Graphismes.details("boost") or {} end,
       options = {
         { cle = "boostFPS", type = "case", libelle = L["Optimiser mes graphismes pour les FPS"],
           info = L["Ombres correctes, textures hautes, effets au sol gardés. Coupés ou baissés : distance de vue, détails du décor, herbes, eau, occlusion ambiante, effets de profondeur, contours, densité des sorts des autres, réverbération du son. Mêmes réglages en raid et donjon, image plus nette. Tes retouches ensuite restent."] },
@@ -346,6 +387,10 @@ local function borner(o, v)
         return nil
     elseif o.type == "case" then
         return v and true or false
+    elseif o.type == "texte" then
+        if v == nil then return "" end
+        v = tostring(v):gsub("^%s+", ""):gsub("%s+$", "")
+        return v:sub(1, o.max or 24)
     elseif o.type == "texture" then
         return type(v) == "string" and v ~= "" and v or nil
     elseif o.type == "couleur" then

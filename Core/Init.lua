@@ -146,6 +146,12 @@ local function demarrer()
     lancer(ns.Vols.creer)
     ns.Reglages.ecouter(ns.Vols.appliquer)
 
+    for e in pairs(ns.Marchand.evenements) do inscrire(e) end
+
+    lancer(ns.Usure.creer)
+    for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
+    ns.Reglages.ecouter(ns.Usure.appliquer)
+
     ns.Reglages.ecouter(ns.rappelerDependance)
     lancer(function() ns.signalerDependances(SuperGuideDB) end)
 
@@ -153,8 +159,13 @@ local function demarrer()
     BINDING_HEADER_SUPERGUIDE = "SuperRsk"
 end
 
+local USURE = {}
+for _, e in ipairs(ns.Usure.EVENEMENTS) do USURE[e] = true end
+
 evenements:SetScript("OnEvent", function(_, e, ...)
     if VERIFIER[e] then demanderVerif() end
+    if USURE[e] then ns.Usure.verifier() end
+    if ns.Marchand.evenements[e] then ns.Marchand.evenements[e](...); return end
     if BARRE_XP[e] and ns.BarreXP.maj then
         ns.BarreXP.surEvenement(e, ...)
         demanderBarre()

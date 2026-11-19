@@ -116,6 +116,38 @@ function Deplacement.reinitialiser()
     for _, i in ipairs(inscrits) do poserDefaut(i) end
 end
 
+-- Un élément sorti de sa place (aperçu du menu) y retourne : position
+-- enregistrée, sinon celle par défaut.
+function Deplacement.replacer(cle)
+    local i = parCle[cle]
+    if not i then return end
+    local p = SuperGuideDB and SuperGuideDB.positions and SuperGuideDB.positions[cle]
+    if p then poser(i.cadre, p[1], p[2]) else poserDefaut(i) end
+end
+
+-- Un seul élément revient à sa place par défaut.
+function Deplacement.remettre(cle)
+    local i = parCle[cle]
+    if not i then return end
+    if SuperGuideDB and SuperGuideDB.positions then SuperGuideDB.positions[cle] = nil end
+    poserDefaut(i)
+end
+
+-- Ancienne position propre au module ({ point, x, y }) : reprise une fois
+-- dans les positions communes, puis oubliée.
+function Deplacement.reprendre(cle, ancienne)
+    local i = parCle[cle]
+    if not (i and type(ancienne) == "table" and ancienne.point) then return false end
+    SuperGuideDB.positions = SuperGuideDB.positions or {}
+    if SuperGuideDB.positions[cle] then return false end
+    i.cadre:ClearAllPoints()
+    i.cadre:SetPoint(ancienne.point, UIParent, ancienne.point, ancienne.x or 0, ancienne.y or 0)
+    local r = rect(i)
+    SuperGuideDB.positions[cle] = { r.x, r.y }
+    poser(i.cadre, r.x, r.y)
+    return true
+end
+
 ---------------------------------------------------------------------------
 -- Écran de déplacement
 ---------------------------------------------------------------------------
@@ -167,6 +199,12 @@ local function suivre(h)
 end
 
 local function glisser(h)
+    -- Bouton relâché, même hors de la poignée (l'aimant l'a décalée sous le
+    -- curseur) : l'élément est lâché.
+    if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+        h:SetScript("OnUpdate", nil)
+        return
+    end
     local s = UIParent:GetEffectiveScale()
     local cx, cy = GetCursorPosition()
     local ux, uy = UIParent:GetCenter()

@@ -2,8 +2,8 @@
 -- gagner des images par seconde ou une vue dégagée. Les valeurs d'avant sont
 -- gardées dans SuperGuideDB.graphismesAvant et rendues quand on coupe.
 --
--- Boost FPS reprend la liste « Optimize My FPS and Graphics » d'EllesmereUI ;
--- il n'est écrit qu'une fois (tes retouches ensuite restent). Météo et
+-- Boost FPS n'est écrit qu'une fois (tes retouches ensuite restent) ; chaque
+-- réglage porte son libellé et sa valeur lisibles (carte « Ce que ça change »). Météo et
 -- brouillard sont réécrits à chaque passage : le jeu les remet quand on
 -- change de qualité graphique. Rien n'est écrit en combat.
 
@@ -19,22 +19,22 @@ Graphismes.GROUPES = {
     { nom = "boost", titre = "Boost FPS",
       actif = function() return R("boostFPS") == true end,
       cvars = {
-          { "graphicsShadowQuality", "1" },     -- ombres : correctes
-          { "graphicsLiquidDetail", "0" },
-          { "graphicsParticleDensity", "5" },   -- effets de sorts importants gardés
-          { "graphicsSSAO", "0" },
-          { "graphicsDepthEffects", "0" },
-          { "graphicsComputeEffects", "0" },
-          { "graphicsOutlineMode", "0" },
-          { "graphicsTextureResolution", "2" }, -- textures : hautes
-          { "graphicsSpellDensity", "0" },
-          { "graphicsProjectedTextures", "1" }, -- effets au sol visibles
-          { "graphicsViewDistance", "0" },
-          { "graphicsEnvironmentDetail", "0" },
-          { "graphicsGroundClutter", "0" },
-          { "RAIDsettingsEnabled", "0" },       -- mêmes réglages en raid et donjon
-          { "ResampleAlwaysSharpen", "1" },     -- image plus nette
-          { "Sound_EnableReverb", "0" },
+          { "graphicsShadowQuality", "1", L["Ombres"], L["Faibles"] },     -- ombres : correctes
+          { "graphicsLiquidDetail", "0", L["Détail de l'eau"], L["Faible"] },
+          { "graphicsParticleDensity", "5", L["Densité des particules"], L["Élevée (effets de sorts gardés)"] },   -- effets de sorts importants gardés
+          { "graphicsSSAO", "0", L["Occlusion ambiante (SSAO)"], L["Coupée"] },
+          { "graphicsDepthEffects", "0", L["Effets de profondeur"], L["Coupés"] },
+          { "graphicsComputeEffects", "0", L["Effets calculés"], L["Coupés"] },
+          { "graphicsOutlineMode", "0", L["Contours en surbrillance"], L["Coupés"] },
+          { "graphicsTextureResolution", "2", L["Résolution des textures"], L["Haute"] }, -- textures : hautes
+          { "graphicsSpellDensity", "0", L["Densité des sorts des autres"], L["Essentiels"] },
+          { "graphicsProjectedTextures", "1", L["Textures projetées (effets au sol)"], L["Gardées"] }, -- effets au sol visibles
+          { "graphicsViewDistance", "0", L["Distance de vue"], L["Courte"] },
+          { "graphicsEnvironmentDetail", "0", L["Détails du décor"], L["Faibles"] },
+          { "graphicsGroundClutter", "0", L["Herbes et petits objets au sol"], L["Faibles"] },
+          { "RAIDsettingsEnabled", "0", L["Réglages à part en raid et donjon"], L["Non, les mêmes partout"] },       -- mêmes réglages en raid et donjon
+          { "ResampleAlwaysSharpen", "1", L["Netteté de l'image"], L["Activée"] },     -- image plus nette
+          { "Sound_EnableReverb", "0", L["Réverbération du son"], L["Coupée"] },
       } },
     { nom = "meteo", titre = L["Météo"], tenir = true,
       actif = function() return R("meteoActif") == true and R("sansMeteo") ~= false end,
@@ -45,7 +45,7 @@ Graphismes.GROUPES = {
     { nom = "spyPlaques", titre = L["Détection Spy"], tenir = true,
       actif = function() return R("spyDetection") == true and _G.Spy ~= nil end,
       cvars = { { "nameplateShowAll", "1" }, { "nameplateShowEnemies", "1" }, { "nameplateMaxDistance", "41" } } },
-    -- Interaction rapide : les réglages de SuperKili, validés en jeu sur
+    -- Interaction rapide : réglages validés en jeu sur
     -- Forever. Le ciblage souple vise aussi les objets (filons, plantes,
     -- coffres, objets de quête, bouchon de pêche) tout autour, sur 20 m, avec
     -- une icône au-dessus ; la touche « Interagir avec la cible » les prend.
@@ -62,6 +62,19 @@ Graphismes.GROUPES = {
       actif = function() return R("meteoActif") == true and R("sansBrouillard") ~= false end,
       cvars = { { "volumeFog", "0" }, { "volumeFogLevel", "0" } } },
 }
+
+-- Lignes { libellé, valeur } d'un groupe, pour la page du module.
+function Graphismes.details(nom)
+    local l = {}
+    for _, g in ipairs(Graphismes.GROUPES) do
+        if g.nom == nom then
+            for _, c in ipairs(g.cvars) do
+                if c[3] then l[#l + 1] = { c[3], c[4] } end
+            end
+        end
+    end
+    return l
+end
 
 local CLES = { boostFPS = true, meteoActif = true, sansMeteo = true, sansBrouillard = true, spyDetection = true, softInteract = true }
 local enAttente = false

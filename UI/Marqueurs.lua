@@ -199,24 +199,31 @@ local function boutonSecurise(parent, nom, couleur, largeur)
     return b
 end
 
+-- Position : par le mode Déplacer (ancienne position de la barre reprise).
 local function placer()
-    local pos = SuperGuideDB and SuperGuideDB.swapPos
-    barre:ClearAllPoints()
-    if type(pos) == "table" and pos.point then
-        barre:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
-    else
-        barre:SetPoint("TOP", UIParent, "TOP", 0, -146)
+    if not ns.Deplacement then
+        barre:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 29, 234)
+        return
+    end
+    ns.Deplacement.inscrire(barre, L["Swap layer en groupe"], "swap", { "BOTTOMLEFT", 29, 234 })
+    SuperGuideDB = SuperGuideDB or {}
+    if SuperGuideDB.swapPos then
+        ns.Deplacement.reprendre("swap", SuperGuideDB.swapPos)
+        SuperGuideDB.swapPos = nil
     end
 end
 
+-- Les boutons couvrent la barre : les glisser déplace la barre (même
+-- enregistrement que le mode Déplacer).
 local function glissable(b)
     b:RegisterForDrag("LeftButton")
-    b:SetScript("OnDragStart", function() barre:StartMoving() end)
+    b:SetScript("OnDragStart", function()
+        local f = barre:GetScript("OnDragStart")
+        if f then f(barre) else barre:StartMoving() end
+    end)
     b:SetScript("OnDragStop", function()
-        barre:StopMovingOrSizing()
-        local point, _, _, x, y = barre:GetPoint()
-        SuperGuideDB = SuperGuideDB or {}
-        SuperGuideDB.swapPos = { point = point, x = x, y = y }
+        local f = barre:GetScript("OnDragStop")
+        if f then f(barre) else barre:StopMovingOrSizing() end
     end)
 end
 

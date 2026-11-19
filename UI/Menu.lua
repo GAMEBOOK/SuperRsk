@@ -36,9 +36,10 @@ end
 -- Fenêtre
 ---------------------------------------------------------------------------
 
-local LARGEUR, HAUTEUR = 720, 480
-local ENTETE, LATERALE, MARGE = 46, 168, 18
+local LARGEUR, HAUTEUR = 762, 480
+local ENTETE, LATERALE, MARGE = 46, 210, 18
 local W = LARGEUR - LATERALE - 2 * MARGE - 10   -- largeur utile du contenu
+local VITRINE = 100   -- hauteur de la bannière d'aperçu
 
 local T, C
 local cadre, defile, ascenseur, sousTitre
@@ -228,7 +229,7 @@ end
 local reglages = {}
 
 -- Carte titrée à partir de y ; renvoie le y suivant.
-local HAUTEURS = { case = 22, curseur = 38, choix = 48, texture = 48, couleur = 22 }
+local HAUTEURS = { case = 22, curseur = 38, choix = 48, texture = 48, couleur = 22, texte = 48 }
 local function carteOptions(p, y, titre, hauteurContenu, remplir)
     local t = intitule(p.cadre, titre:upper())
     t:SetPoint("TOPLEFT", 0, y)
@@ -268,13 +269,15 @@ function reglages.construire(p)
     carte(L["Positions"], 40, function(c)
         local d = C.texte(c, "petit", "texteDoux")
         d:SetPoint("TOPLEFT", 14, -14)
-        d:SetWidth(W - 200)
-        d:SetText(L["Les barres, fenêtres et le bouton de la minicarte reviennent à leur place par défaut."])
-        local b = C.bouton(c, L["Réinitialiser les positions"], "orange", function()
+        d:SetWidth(W - 340)
+        d:SetText(L["Place où tu veux chaque élément des modules : barres, fenêtres, widget, boutons du swap."])
+        local b = C.bouton(c, L["Réinitialiser"], "orange", function()
             confirmer(L["Remettre les barres, les fenêtres et le bouton de la minicarte à leur place ?"],
                 function() ns.Reglages.reinitialiserPositions() end)
-        end, 170)
+        end, 110)
         b:SetPoint("RIGHT", -14, 0)
+        local dep = C.bouton(c, L["Déplacer les éléments"], "accent", function() ns.Deplacement.ouvrir() end, 170)
+        dep:SetPoint("RIGHT", b, "LEFT", -8, 0)
     end)
     carte(L["Sauvegarde des réglages"], 40, function(c)
         local d = C.texte(c, "petit", "texteDoux")
@@ -441,6 +444,19 @@ local function construireReglages(q, m)
         x = x + 188
     end
     if x > 0 then y = y - 24 - 16 end
+    local lignes = m.details and m.details() or {}
+    if #lignes > 0 then
+        y = carteOptions(q, y, L["Ce que ça change"], #lignes * 18, function(c)
+            for i, d in ipairs(lignes) do
+                local g = C.texte(c, "petit", "texteDoux")
+                g:SetPoint("TOPLEFT", 14, -12 - (i - 1) * 18)
+                g:SetText(d[1])
+                local v = C.texte(c, "petit", "texte")
+                v:SetPoint("TOPRIGHT", -14, -12 - (i - 1) * 18)
+                v:SetText(d[2])
+            end
+        end)
+    end
     q.hauteur = -y
     q.extra = EXTRAS[m.nom]
     if q.extra then q.extra.construire(q) end
@@ -457,6 +473,15 @@ end
 function module.construire(p)
     local m = p.def.module
     p.y0 = enTete(p, m.titre, m.desc)
+    -- Bannière d'aperçu : l'élément du module, en direct.
+    if m.vitrine then
+        local t = intitule(p.cadre, L["APERÇU"])
+        t:SetPoint("TOPLEFT", 0, p.y0)
+        p.banniere = C.carte(p.cadre)
+        p.banniere:SetPoint("TOPLEFT", 0, p.y0 - 18)
+        p.banniere:SetSize(W, VITRINE)
+        p.y0 = p.y0 - 18 - VITRINE - 16
+    end
     p.onglets = ONGLETS[m.nom]
     if p.onglets then
         p.boutons = {}
@@ -574,6 +599,64 @@ end
 
 local deplie = false
 
+-- Aperçu en direct : le module ouvert montre son élément (barre d'XP,
+-- widget…) tant que sa page est affichée.
+local apercuActuel, monte
+
+-- L'élément du module (sa vraie barre, son vrai widget) quitte sa place et
+-- s'affiche dans la bannière, réduit s'il est trop large ; il y revient après.
+local function demonter()
+    if not monte then return end
+    local f = monte.cadre
+    f:SetParent(UIParent)
+    f:SetScale(1)
+    f:SetFrameStrata(monte.strate or "MEDIUM")
+    f:EnableMouse(true)
+    if ns.Deplacement and ns.Deplacement.replacer then ns.Deplacement.replacer(monte.cle) end
+    monte = nil
+end
+
+local function monter(m, banniere)
+    local f, cle = m.vitrine()
+    if not (f and banniere) then return end
+    monte = { cadre = f, cle = cle, strate = f:GetFrameStrata() }
+    f:SetParent(banniere)
+    f:SetFrameStrata(banniere:GetFrameStrata())
+    f:SetFrameLevel((banniere:GetFrameLevel() or 0) + 5)
+    f:EnableMouse(false)
+    f:ClearAllPoints()
+    f:SetPoint("CENTER", banniere, "CENTER", 0, 0)
+    local largeur = (f:GetWidth() or 0) * (f:GetScale() or 1)
+    if largeur > W - 40 then f:SetScale((f:GetScale() or 1) * (W - 40) / largeur) end
+end
+
+local function changerApercu(m, p)
+    if apercuActuel == m then return end
+    demonter()
+    if apercuActuel and apercuActuel.apercu then apercuActuel.apercu(false) end
+    apercuActuel = m
+    if m and m.apercu then m.apercu(true) end
+    if m and m.vitrine and p and p.banniere then monter(m, p.banniere) end
+end
+
+-- Ouverture et fermeture en fondu, avec un léger zoom à l'ouverture.
+local FONDU_ENTREE, FONDU_SORTIE = 0.18, 0.12
+local function fondu(entree)
+    local debut = GetTime and GetTime() or 0
+    local duree = entree and FONDU_ENTREE or FONDU_SORTIE
+    cadre:SetScript("OnUpdate", function(self)
+        local t = math.min(1, ((GetTime and GetTime() or debut + duree) - debut) / duree)
+        local doux = 1 - (1 - t) * (1 - t)
+        self:SetAlpha(entree and doux or (1 - doux))
+        if entree then self:SetScale(0.97 + 0.03 * doux) end
+        if t >= 1 then
+            self:SetScript("OnUpdate", nil)
+            self:SetScale(1)
+            if not entree then self:Hide(); self:SetAlpha(1) end
+        end
+    end)
+end
+
 local function majNav()
     local visibles = {}
     for _, e in ipairs(Menu.disposition(SECTIONS, ns.Reglages.MODULES, deplie)) do visibles[e.nom] = e end
@@ -590,6 +673,13 @@ local function majNav()
         b.bord:SetAlpha(oui and 1 or 0)
         b.barre:SetShown(oui)
         b.icone:SetVertexColor(T.rgb(oui and "accent" or "texteDoux"))
+        -- Module : coche s'il est allumé, rien s'il est coupé.
+        local m = b.module
+        if type(m) == "table" then
+            local allume = not m.interrupteur or ns.Reglages.get(m.interrupteur) ~= false
+            b.icone:SetAlpha(allume and 1 or 0)
+            if not allume and not oui then b.texte:SetTextColor(T.rgb("textePale")) end
+        end
         b.texte:SetTextColor(T.rgb(oui and "texte" or "texteDoux"))
     end
 end
@@ -638,7 +728,15 @@ local function creer()
     x:SetVertexColor(T.rgb("texteDoux"))
     fermer:SetScript("OnEnter", function() x:SetVertexColor(T.rgb("rouge")) end)
     fermer:SetScript("OnLeave", function() x:SetVertexColor(T.rgb("texteDoux")) end)
-    fermer:SetScript("OnClick", function() cadre:Hide() end)
+    fermer:SetScript("OnClick", function() Menu.fermer() end)
+    local deplacer = C.bouton(entete, L["Déplacer"], "accent", function()
+        cadre:Hide()
+        ns.Deplacement.ouvrir()
+    end, 90)
+    deplacer:SetPoint("RIGHT", fermer, "LEFT", -8, 0)
+    C.infobulle(deplacer, L["Déplacer"], L["Place où tu veux chaque élément des modules : barres, fenêtres, widget, boutons du swap."])
+    -- Menu fermé (croix, Échap, /sg) : plus d'aperçu.
+    cadre:SetScript("OnHide", function() changerApercu(nil) end)
     local sep = T.separateur(cadre)
     sep:SetPoint("TOPLEFT", 1, -ENTETE)
     sep:SetPoint("TOPRIGHT", -1, -ENTETE)
@@ -666,6 +764,7 @@ local function creer()
         local bt = CreateFrame("Button", nil, cote)
         bt:SetSize(LATERALE - (s.sous and 28 or 16), s.sous and 24 or 32)
         bt.nom = s.nom
+        bt.module = s.module
         bt.fond, bt.bord = T.fond(bt, "flot", 1, "bordFort")
         bt.barre = bt:CreateTexture(nil, "OVERLAY")
         bt.barre:SetColorTexture(T.rgb("accent"))
@@ -677,6 +776,10 @@ local function creer()
         bt.icone:SetPoint("LEFT", 14, 0)
         bt.texte = C.texte(bt, "texte", "texteDoux")
         bt.texte:SetPoint("LEFT", bt.icone, "RIGHT", 10, 0)
+        -- Le libellé reste dans sa colonne (coupé par « … » s'il est trop long).
+        bt.texte:SetPoint("RIGHT", bt, "RIGHT", s.groupe and -26 or -6, 0)
+        bt.texte:SetJustifyH("LEFT")
+        bt.texte:SetWordWrap(false)
         bt.texte:SetText(L[s.libelle])
         bt.chevron = false
         if s.groupe then
@@ -697,9 +800,12 @@ local function creer()
     majNav()
     -- La liste dépliée doit tenir au-dessus du pied : la fenêtre grandit
     -- s'il le faut (plus de modules qu'avant).
+    -- Bas du dernier bouton (un grand : « À propos »), puis la place du pied.
     local bas = 0
-    for _, e in ipairs(Menu.disposition(SECTIONS, ns.Reglages.MODULES, true)) do bas = math.min(bas, e.y) end
-    cadre:SetHeight(math.max(HAUTEUR, ENTETE + (-bas) + PAS.sous + 44))
+    for _, e in ipairs(Menu.disposition(SECTIONS, ns.Reglages.MODULES, true)) do
+        bas = math.min(bas, e.y - (e.sous and PAS.sous or PAS.normal))
+    end
+    cadre:SetHeight(math.max(HAUTEUR, ENTETE + (-bas) + 44))
     local pied = C.texte(cote, "petit", "textePale")
     pied:SetPoint("BOTTOMLEFT", 16, 14)
     pied:SetText("v" .. version() .. "  ·  /sg menu")
@@ -726,7 +832,11 @@ local function creer()
     end
 
     -- Un réglage changé ailleurs (/sg lock, Ctrl + molette) : on relit.
-    ns.Reglages.ecouter(function() if cadre:IsShown() and pages[actuelle] and pages[actuelle].controles then Menu.rafraichir(true) end end)
+    ns.Reglages.ecouter(function()
+        if not cadre:IsShown() then return end
+        majNav()
+        if pages[actuelle] and pages[actuelle].controles then Menu.rafraichir(true) end
+    end)
 end
 
 -- Redessine la page affichée ; « garder » conserve la position de défilement.
@@ -758,15 +868,24 @@ function Menu.ouvrir(nom, onglet)
     if p.def.sous then deplie = true end
     sousTitre:SetText(L[p.def.libelle])
     majNav()
-    cadre:Show()
+    if not cadre:IsShown() or cadre:GetScript("OnUpdate") then
+        cadre:SetAlpha(0)
+        cadre:Show()
+        fondu(true)
+    end
     cadre:Raise()
+    changerApercu(p.def.module, p)
     Menu.rafraichir()
 end
 
-function Menu.fermer() if cadre then cadre:Hide() end end
+function Menu.fermer()
+    if not (cadre and cadre:IsShown()) then return end
+    changerApercu(nil)
+    fondu(false)
+end
 
 function Menu.basculer(nom)
-    if cadre and cadre:IsShown() and (not nom or nom == actuelle) then return cadre:Hide() end
+    if cadre and cadre:IsShown() and (not nom or nom == actuelle) then return Menu.fermer() end
     Menu.ouvrir(nom)
 end
 

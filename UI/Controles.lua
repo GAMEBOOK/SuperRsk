@@ -371,10 +371,38 @@ function Controles.pour(parent, o, largeur)
     if o.type == "choix" then return Controles.choix(parent, o, largeur) end
     if o.type == "texture" then return Controles.texture(parent, o, largeur) end
     if o.type == "couleur" then return Controles.couleur(parent, o, largeur) end
+    if o.type == "texte" then return Controles.texteLibre(parent, o, largeur) end
 end
 
 -- Champ de saisie : texte pâle tant qu'il est vide, icône à gauche si
 -- donnée ; « rappel(texte) » à chaque frappe, « entree(champ) » sur Entrée.
+-- Texte libre lié à un réglage : libellé au-dessus, champ dessous.
+function Controles.texteLibre(parent, o, largeur)
+    local R = ns.Reglages
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(largeur, 48)
+    local t = Controles.texte(f, "texte", "texte")
+    t:SetPoint("TOPLEFT")
+    t:SetText(o.libelle)
+    local enCours = false
+    local champ = Controles.champ(f, math.min(largeur, 260), o.indice or "", function(texte)
+        if not enCours then R.set(o.cle, texte) end
+    end)
+    champ:SetPoint("TOPLEFT", 0, -20)
+    champ:SetMaxLetters(o.max or 24)
+    function f.maj()
+        local v = R.get(o.cle) or ""
+        if champ:GetText() ~= v and not champ:HasFocus() then
+            enCours = true
+            champ:SetText(v)
+            enCours = false
+        end
+    end
+    Controles.infobulle(f, o.libelle, o.info)
+    f.maj()
+    return f
+end
+
 function Controles.champ(parent, largeur, indiceTexte, rappel, icone, entree)
     local f = CreateFrame("EditBox", nil, parent)
     f:SetSize(largeur, 26)

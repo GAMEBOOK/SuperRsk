@@ -348,6 +348,72 @@ function Jeu.objetsSacs()
     return liste
 end
 
+-- Marchand ------------------------------------------------------------------
+
+-- Objets gris des sacs qui se vendent : { { sac, case, prix (total), nombre } }.
+function Jeu.objetsGris()
+    local liste = {}
+    if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
+    for sac = 0, 4 do
+        for case = 1, C_Container.GetContainerNumSlots(sac) or 0 do
+            local info = C_Container.GetContainerItemInfo(sac, case)
+            if info and info.quality == 0 and not info.hasNoValue then
+                local prix = info.hyperlink and select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
+                if (prix or 0) > 0 then
+                    local n = info.stackCount or 1
+                    liste[#liste + 1] = { sac = sac, case = case, prix = prix * n, nombre = n }
+                end
+            end
+        end
+    end
+    return liste
+end
+
+function Jeu.vendre(sac, case) C_Container.UseContainerItem(sac, case) end
+function Jeu.marchandOuvert() return MerchantFrame and MerchantFrame:IsShown() or false end
+function Jeu.peutReparer() return CanMerchantRepair and CanMerchantRepair() or false end
+function Jeu.coutReparation()
+    local cout = GetRepairAllCost and GetRepairAllCost()
+    return tonumber(cout) or 0
+end
+function Jeu.peutReparerGuilde() return CanGuildBankRepair and CanGuildBankRepair() or false end
+function Jeu.reparer(guilde) RepairAllItems(guilde and true or nil) end
+function Jeu.argent() return GetMoney and GetMoney() or 0 end
+function Jeu.majEnfonce() return IsShiftKeyDown and IsShiftKeyDown() or false end
+
+-- 1 po 23 pa 45 pc, avec les pièces du jeu quand il sait les dessiner.
+function Jeu.texteArgent(cuivre)
+    if C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString then
+        return C_CurrencyInfo.GetCoinTextureString(cuivre)
+    end
+    if GetCoinTextureString then return GetCoinTextureString(cuivre) end
+    return ("%d po %d pa %d pc"):format(math.floor(cuivre / 10000), math.floor(cuivre / 100) % 100, cuivre % 100)
+end
+
+-- Usure ---------------------------------------------------------------------
+
+-- Pièces portées qui s'usent : { { case, actuel, max } }.
+function Jeu.usure()
+    local liste = {}
+    if not GetInventoryItemDurability then return liste end
+    for case = 1, 18 do
+        local actuel, max = GetInventoryItemDurability(case)
+        if actuel and max and max > 0 then liste[#liste + 1] = { case = case, actuel = actuel, max = max } end
+    end
+    return liste
+end
+
+-- Icône et lien de la pièce portée dans cette case.
+function Jeu.iconePiece(case) return GetInventoryItemTexture and GetInventoryItemTexture("player", case) end
+function Jeu.lienPiece(case) return GetInventoryItemLink and GetInventoryItemLink("player", case) end
+
+-- Sons courts du jeu : « alerte » (avertissement de raid).
+function Jeu.jouerSon(nom)
+    if nom == "alerte" and PlaySound then
+        PlaySound((SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959, "Master")
+    end
+end
+
 -- nil = emplacement vide ; false = objet porté pas encore en cache.
 function Jeu.objetPorte(id)
     local lien = GetInventoryItemLink("player", id)

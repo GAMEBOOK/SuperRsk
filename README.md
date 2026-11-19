@@ -12,6 +12,8 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Auto Equip** | Spots gear upgrades for your class and spec (armor type, weapon DPS, hit and crit ratings) and offers to equip them. Shows the upgrade % in item tooltips. Picks the best quest reward. |
 | **XP Bar** | A clean, movable XP bar with the XP of your finished and ongoing quests, rested XP, XP per hour. |
 | **Auto Loot** | Instant fast loot, loot list, sound when bags are full. |
+| **Merchant** | Sells your grey items and repairs your gear at any merchant, no click needed (guild money optional). |
+| **Gear Durability** | A small widget warns you when your gear drops below 20 % (threshold, style and size to taste). |
 | **Auto Spell Ranks** | Replaces old spell ranks on your action bars with the new rank when you learn it. |
 | **Auto Shot / Wand** | Auto shot and wand timer: tells you when to stop moving so the shot is not lost. |
 | **Flight Points** | Every flight point of your faction on the world map, known ones marked. |
@@ -40,7 +42,7 @@ Two modules need another addon, SuperRsk tells you in game when one is missing:
 ## Commands
 
 - `/sg` or `/srsk`: menu
-- `/sg move`: move bars and windows
+- `/sg move`: move every element of every module (also the Move button at the top of the menu)
 - `/sg spe`: talent tree used by Auto Equip
 - `/sg tir`: measured auto shot / wand timings
 

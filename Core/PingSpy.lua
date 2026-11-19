@@ -186,7 +186,7 @@ function VH.partager(force)
     local moi = VH.monNom()
     local b = base(g)
     if b and moi then
-        b[moi] = { total = m.total, rang = m.rang, classe = m.classe, t = maintenant() }
+        b[moi] = { total = m.total, rang = m.rang, classe = m.classe, t = maintenant(), addon = true }
         local prenom = UnitName and court(UnitName("player"))
         if prenom and prenom ~= moi then b[prenom] = nil end
     end
@@ -211,10 +211,28 @@ function VH.surMessage(prefixe, msg, canal, envoyeur)
     local d = VH.lire(msg)
     local b = base(guilde())
     if d and b then
-        d.t, d.vu = maintenant(), nil
+        d.t, d.vu, d.addon = maintenant(), nil, true
         b[nom] = d
         if VH.rafraichir then VH.rafraichir() end
     end
+end
+
+-- A SuperRsk : il a envoyé ses chiffres lui-même (au moins une fois).
+function VH.aLAddon(d)
+    return type(d) == "table" and (d.addon == true or (d.vu == nil and d.total ~= nil)) or false
+end
+
+-- Nom court -> a SuperRsk ? (membres de ma guilde connus).
+function VH.connuAvecAddon(nom)
+    local b = base(guilde())
+    return b and VH.aLAddon(b[court(nom) or ""]) or false
+end
+
+-- Boussole de SuperRsk dans un texte : cyan = a l'addon, gris = ne l'a pas.
+function VH.icone(oui, taille)
+    taille = taille or 12
+    local c = oui and "79:216:255" or "110:120:137"
+    return ("|TInterface\\AddOns\\%s\\Media\\Icones\\boussole:%d:%d:0:0:64:64:0:64:0:64:%s|t"):format(ADDON, taille, taille, c)
 end
 
 -- Classement : { { nom, total, rang, classe, moi } } trié, sans les oubliés.
@@ -224,7 +242,7 @@ function VH.classement()
     for nom, d in pairs(b or {}) do
         if type(d) == "table" and tonumber(d.total) and (d.t or 0) >= limite then
             l[#l + 1] = { nom = nom, total = d.total, rang = d.rang, classe = d.classe, moi = nom == moi,
-                          vu = d.vu and d.t or nil }
+                          vu = d.vu and d.t or nil, addon = VH.aLAddon(d) }
         end
     end
     table.sort(l, function(a, c)
@@ -253,10 +271,20 @@ end
 -- « 1.  Nom (toi) vu le 12/11 » : rang en couleur de médaille, nom en couleur de classe.
 local function gaucheClassement(i, e)
     local medaille = (i == 1 and "|cffffd100") or (i == 2 and "|cffc0c0c0") or (i == 3 and "|cffcd7f32") or "|cff9aa3b2"
-    local gauche = medaille .. i .. ".|r  |c" .. couleurClasse(e.classe) .. e.nom .. "|r"
+    local gauche = medaille .. i .. ".|r  " .. VH.icone(e.addon) .. " |c" .. couleurClasse(e.classe) .. e.nom .. "|r"
     if e.moi then gauche = gauche .. " |cff4fd8ff" .. L["(toi)"] .. "|r" end
     if e.vu and date then gauche = gauche .. " |cff6f7889" .. L["vu le %s"]:format(date("%d/%m", e.vu)) .. "|r" end
     return gauche
+end
+
+function VH.compterAddon(l)
+    local n = 0
+    for _, e in ipairs(l) do if e.addon then n = n + 1 end end
+    return n
+end
+
+local function legende()
+    return VH.icone(true) .. " " .. L["a SuperRsk"] .. "    " .. VH.icone(false) .. " " .. L["ne l'a pas"]
 end
 
 local function infobulle(self)
@@ -272,7 +300,7 @@ local function infobulle(self)
     if guilde() and ns.Reglages.get("vhGuilde") ~= false then
         local l = VH.classement()
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L["Guilde : %d joueur(s)"]:format(#l), 0.31, 0.85, 1)
+        GameTooltip:AddLine(L["Guilde : %d joueur(s), %d avec SuperRsk"]:format(#l, VH.compterAddon(l)), 0.31, 0.85, 1)
         local top = tonumber(ns.Reglages.get("vhTop")) or 10
         local maPlace
         for i, e in ipairs(l) do if e.moi then maPlace = i end end
@@ -288,6 +316,7 @@ local function infobulle(self)
             GameTooltip:AddLine(L["Les membres qui ont SuperRsk apparaissent en se connectant ; les autres quand tu passes près d'eux."], 0.6, 0.6, 0.6, true)
         end
     end
+    if guilde() and ns.Reglages.get("vhGuilde") ~= false then GameTooltip:AddLine(legende(), 0.6, 0.6, 0.6) end
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(L["Clic : classement complet. Glisser : déplacer."], 0.5, 0.5, 0.5)
     GameTooltip:Show()
@@ -321,7 +350,7 @@ end
 local function remplirListe()
     local l = classementVisible() and VH.classement() or {}
     local m = VH.moi()
-    liste.sous:SetText(classementVisible() and L["Guilde : %d joueur(s)"]:format(#l)
+    liste.sous:SetText(classementVisible() and L["Guilde : %d joueur(s), %d avec SuperRsk"]:format(#l, VH.compterAddon(l))
         or L["Toi : %s au total, %s aujourd'hui"]:format(VH.nombre(m.total), VH.nombre(m.jour)))
     for i, e in ipairs(l) do
         local r = ligneListe(i)
@@ -368,6 +397,9 @@ local function creerListe()
         local max = math.max(0, liste.contenu:GetHeight() - self:GetHeight())
         self:SetVerticalScroll(math.min(max, math.max(0, self:GetVerticalScroll() - d * LIGNE_VH * 3)))
     end)
+    liste.legende = C.texte(liste, "petit", "texteDoux")
+    liste.legende:SetPoint("TOPRIGHT", -40, -30)
+    liste.legende:SetText(legende())
     liste.vide = C.texte(liste, "petit", "texteDoux")
     liste.vide:SetPoint("BOTTOMLEFT", 12, 12)
     liste.vide:SetPoint("BOTTOMRIGHT", -12, 12)
@@ -409,24 +441,47 @@ function VH.rafraichir()
     if liste and liste:IsShown() then remplirListe() end
 end
 
+-- Position : par le mode Déplacer (ancienne position du widget reprise).
 local function placer()
-    local pos = SuperGuideDB and SuperGuideDB.vhPos
-    widget:ClearAllPoints()
-    if type(pos) == "table" and pos.point then
-        widget:SetPoint(pos.point, UIParent, pos.point, pos.x, pos.y)
-    else
-        widget:SetPoint("TOP", UIParent, "TOP", 0, -14)
+    if not ns.Deplacement then
+        widget:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 417, -312)
+        return
+    end
+    ns.Deplacement.inscrire(widget, L["Victoires honorables"], "vh", { "TOPLEFT", 417, -312 })
+    SuperGuideDB = SuperGuideDB or {}
+    if SuperGuideDB.vhPos then
+        ns.Deplacement.reprendre("vh", SuperGuideDB.vhPos)
+        SuperGuideDB.vhPos = nil
     end
 end
 
--- Bouton du module : le widget revient en haut au centre.
+-- Bouton du module : le widget revient à sa place par défaut (en haut à gauche).
 function VH.recentrer()
-    SuperGuideDB = SuperGuideDB or {}
-    SuperGuideDB.vhPos = nil
-    if widget then placer(); VH.rafraichir() end
+    if widget and ns.Deplacement then ns.Deplacement.remettre("vh"); VH.rafraichir() end
+end
+
+-- Infobulle d'un joueur : « SuperRsk » avec la boussole s'il a l'addon.
+local function ligneInfobulle(tt)
+    if ns.Reglages.get("vhGuilde") == false or not (tt and tt.GetUnit) then return end
+    local ok, _, unite = pcall(tt.GetUnit, tt)
+    if not ok or type(unite) ~= "string" or secret(unite) then return end
+    if not (UnitIsPlayer and UnitIsPlayer(unite)) or not UnitName then return end
+    local premier, second = UnitName(unite)
+    local complet = ns.SwapGroupe and ns.SwapGroupe.nomComplet and ns.SwapGroupe.nomComplet(premier, second)
+    if VH.connuAvecAddon(complet) or VH.connuAvecAddon(premier) then
+        tt:AddLine(VH.icone(true, 14) .. " SuperRsk", 0.31, 0.85, 1)
+        tt:Show()
+    end
 end
 
 function VH.creer()
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tt)
+            if tt == GameTooltip then ligneInfobulle(tt) end
+        end)
+    elseif GameTooltip and GameTooltip.HookScript then
+        pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", ligneInfobulle)
+    end
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
         pcall(C_ChatInfo.RegisterAddonMessagePrefix, VH.PREFIXE)
     end
@@ -452,20 +507,14 @@ function VH.creer()
     widget.jour:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 11, "")
     widget.jour:SetPoint("LEFT", widget.texte, "RIGHT", 6, 0)
     placer()
-    widget:SetScript("OnDragStart", function(self) self:StartMoving() end)
     widget:RegisterForClicks("LeftButtonUp")
     widget:SetScript("OnClick", function(self)
         if self.finGlisser and GetTime() - self.finGlisser < 0.3 then return end
         GameTooltip:Hide()
         VH.basculerListe()
     end)
-    widget:SetScript("OnDragStop", function(self)
-        self.finGlisser = GetTime()
-        self:StopMovingOrSizing()
-        local point, _, _, x, y = self:GetPoint()
-        SuperGuideDB = SuperGuideDB or {}
-        SuperGuideDB.vhPos = { point = point, x = x, y = y }
-    end)
+    -- Un glisser ne doit pas ouvrir la liste en lâchant.
+    widget:HookScript("OnDragStop", function(self) self.finGlisser = GetTime() end)
     if C_Timer and C_Timer.NewTicker then
         C_Timer.NewTicker(5, function()
             local avant = widget.dernier
@@ -561,7 +610,8 @@ function VH.surInspection(guid)
     local ancien = b and b[attente.nom]
     -- Un membre qui a SuperRsk garde ses chiffres envoyés (plus frais).
     if b and not (ancien and not ancien.vu and (ancien.t or 0) > maintenant() - 3600) then
-        b[attente.nom] = { total = d.total, rang = d.rang, classe = attente.classe, t = maintenant(), vu = true }
+        b[attente.nom] = { total = d.total, rang = d.rang, classe = attente.classe, t = maintenant(), vu = true,
+                           addon = ancien and ancien.addon or nil }
     end
     attente = nil
     if not (InspectFrame and InspectFrame.IsShown and InspectFrame:IsShown()) and ClearInspectPlayer then

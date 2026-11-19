@@ -19,6 +19,9 @@ function Proposition.creer()
     cadre:SetPoint("TOP", UIParent, "TOP", 0, -160)
     cadre:SetFrameStrata("FULLSCREEN_DIALOG")
     cadre:EnableMouse(true)
+    if ns.Deplacement then
+        ns.Deplacement.inscrire(cadre, L["Proposition d'équipement"], "proposition", { "TOP", 0, -160 })
+    end
     T.fond(cadre, "panneau", 0.96, "bordFort")
 
     -- Titre : survol = info-bulle de l'objet proposé.
