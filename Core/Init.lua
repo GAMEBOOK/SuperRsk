@@ -207,6 +207,7 @@ evenements:SetScript("OnEvent", function(_, e, ...)
     elseif e == "GROUP_ROSTER_UPDATE" then
         ns.SwapGroupe.noterGroupe()
         ns.SwapGroupe.reglerButin()
+        ns.VH.surGroupe()
         if ns.SwapGroupe.rafraichir then ns.SwapGroupe.rafraichir() end
         return
     end

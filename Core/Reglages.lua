@@ -29,7 +29,7 @@ Reglages.DEFAUTS = {
     marqueursActif = true, marqueurMoi = 1,
     swapGroupeActif = true, swapButinLibre = true,
     spyPing = true, spyPingType = "Warning", spyWay = false, spyDetection = true,
-    vhActif = true, vhGuilde = true, vhTop = 10,
+    vhActif = true, vhGuilde = true, vhTop = 10, vhMonde = true,
     tsquidActif = false, tsquidCritSon = true, tsquidCanal = "Master",
     softInteract = true,
     marchandActif = true, marchandVendre = true, marchandReparer = true, marchandGuilde = false, marchandMessage = true,
@@ -260,6 +260,8 @@ Reglages.MODULES = {
       options = {
         { cle = "vhActif", type = "case", libelle = L["Afficher le widget"],
           info = L["Glisse-le où tu veux. Survol : aujourd'hui, au total, et le classement de la guilde. Clic : le classement complet."] },
+        { cle = "vhMonde", type = "case", libelle = L["Partager avec mes groupes (Tout le monde)"],
+          info = L["En groupe, en raid ou en champ de bataille, échange tes victoires avec les joueurs qui ont SuperRsk. Ils apparaissent dans l'onglet « Tout le monde » du classement."] },
         { cle = "vhGuilde", type = "case", libelle = L["Partager avec ma guilde"],
           info = L["Envoie tes victoires honorables aux membres de ta guilde qui ont SuperRsk, et reçoit les leurs. Coupé : tu ne vois plus que les tiennes."] },
         { cle = "vhTop", type = "choix", valeurs = { 5, 10, 20 }, noms = { "5", "10", "20" },

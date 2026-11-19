@@ -198,23 +198,77 @@ function VH.partager(force)
     return true
 end
 
+-- Tout le monde : les joueurs avec SuperRsk croisés en groupe, en raid, en
+-- champ de bataille ou dans la guilde (les 500 plus récents).
+VH.MONDE_MAX = 500
+VH.PAUSE_GROUPE = 10   -- au plus un envoi au groupe toutes les 10 s
+
+local function monde()
+    SuperGuideDB = SuperGuideDB or {}
+    SuperGuideDB.vhMonde = type(SuperGuideDB.vhMonde) == "table" and SuperGuideDB.vhMonde or {}
+    return SuperGuideDB.vhMonde
+end
+
+local function noterMonde(nom, d)
+    local m = monde()
+    m[nom] = { total = d.total, rang = d.rang, classe = d.classe, t = d.t, addon = true }
+    local n, plusVieux, tVieux = 0, nil, math.huge
+    for k, e in pairs(m) do
+        n = n + 1
+        if (e.t or 0) < tVieux then plusVieux, tVieux = k, e.t or 0 end
+    end
+    if n > VH.MONDE_MAX and plusVieux then m[plusVieux] = nil end
+end
+
+local GROUPE = { PARTY = true, RAID = true, INSTANCE_CHAT = true }
+
+local function canalGroupe()
+    if IsInGroup and LE_PARTY_CATEGORY_INSTANCE and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then return "INSTANCE_CHAT" end
+    if IsInRaid and IsInRaid() then return "RAID" end
+    if IsInGroup and IsInGroup() then return "PARTY" end
+end
+
+local dernierGroupe = -1000
+-- Mes chiffres au groupe (et la demande des leurs), au plus toutes les 10 s.
+function VH.partagerGroupe(demander)
+    if ns.Reglages.get("vhMonde") == false then return false end
+    local c = canalGroupe()
+    if not (c and C_ChatInfo and C_ChatInfo.SendAddonMessage) then return false end
+    local t = GetTime and GetTime() or 0
+    if t - dernierGroupe < VH.PAUSE_GROUPE then return false end
+    dernierGroupe = t
+    pcall(C_ChatInfo.SendAddonMessage, VH.PREFIXE, VH.message(VH.moi()), c)
+    if demander then pcall(C_ChatInfo.SendAddonMessage, VH.PREFIXE, "Q", c) end
+    return true
+end
+
+-- Le groupe change (quelqu'un arrive, je rejoins) : je me présente.
+function VH.surGroupe() return VH.partagerGroupe(true) end
+
 function VH.surMessage(prefixe, msg, canal, envoyeur)
-    if prefixe ~= VH.PREFIXE or canal ~= "GUILD" or ns.Reglages.get("vhGuilde") == false then return end
+    if prefixe ~= VH.PREFIXE then return end
+    local groupe = GROUPE[canal]
+    if canal == "GUILD" then
+        if ns.Reglages.get("vhGuilde") == false then return end
+    elseif not (groupe and ns.Reglages.get("vhMonde") ~= false) then
+        return
+    end
     local nom = court(envoyeur)
     if not nom or nom == VH.monNom() then return end
     if msg == "Q" then
         -- Chacun répond un peu plus tard, pas tous en même temps.
         local delai = 1 + (math.random and math.random() * 6 or 3)
-        if C_Timer then C_Timer.After(delai, function() VH.partager(true) end) else VH.partager(true) end
+        local repondre = function() if groupe then VH.partagerGroupe(false) else VH.partager(true) end end
+        if C_Timer then C_Timer.After(delai, repondre) else repondre() end
         return
     end
     local d = VH.lire(msg)
-    local b = base(guilde())
-    if d and b then
-        d.t, d.vu, d.addon = maintenant(), nil, true
-        b[nom] = d
-        if VH.rafraichir then VH.rafraichir() end
-    end
+    if not d then return end
+    d.t, d.vu, d.addon = maintenant(), nil, true
+    noterMonde(nom, d)
+    local b = canal == "GUILD" and base(guilde())
+    if b then b[nom] = d end
+    if VH.rafraichir then VH.rafraichir() end
 end
 
 -- A SuperRsk : il a envoyé ses chiffres lui-même (au moins une fois).
@@ -224,8 +278,11 @@ end
 
 -- Nom court -> a SuperRsk ? (membres de ma guilde connus).
 function VH.connuAvecAddon(nom)
+    local k = court(nom)
+    if not k then return false end
     local b = base(guilde())
-    return b and VH.aLAddon(b[court(nom) or ""]) or false
+    if b and VH.aLAddon(b[k]) then return true end
+    return monde()[k] ~= nil
 end
 
 -- Boussole de SuperRsk dans un texte : cyan = a l'addon, gris = ne l'a pas.
@@ -245,6 +302,29 @@ function VH.classement()
                           vu = d.vu and d.t or nil, addon = VH.aLAddon(d) }
         end
     end
+    table.sort(l, function(a, c)
+        if a.total ~= c.total then return a.total > c.total end
+        return a.nom < c.nom
+    end)
+    return l
+end
+
+-- Tout le monde : joueurs avec SuperRsk rencontrés (guilde comprise) et moi,
+-- triés par victoires.
+function VH.classementMonde()
+    local vus, l, moi = {}, {}, VH.monNom()
+    local limite = maintenant() - VH.OUBLI * 2
+    local function ajouter(nom, d)
+        if vus[nom] or type(d) ~= "table" or not tonumber(d.total) then return end
+        vus[nom] = true
+        l[#l + 1] = { nom = nom, total = d.total, rang = d.rang, classe = d.classe, moi = nom == moi, addon = true }
+    end
+    if moi then
+        local m = VH.moi()
+        ajouter(moi, { total = m.total, rang = m.rang, classe = m.classe })
+    end
+    for nom, d in pairs(monde()) do if (d.t or 0) >= limite then ajouter(nom, d) end end
+    for nom, d in pairs(base(guilde()) or {}) do if VH.aLAddon(d) then ajouter(nom, d) end end
     table.sort(l, function(a, c)
         if a.total ~= c.total then return a.total > c.total end
         return a.nom < c.nom
@@ -277,16 +357,6 @@ local function gaucheClassement(i, e)
     return gauche
 end
 
-function VH.compterAddon(l)
-    local n = 0
-    for _, e in ipairs(l) do if e.addon then n = n + 1 end end
-    return n
-end
-
-local function legende()
-    return VH.icone(true) .. " " .. L["a SuperRsk"] .. "    " .. VH.icone(false) .. " " .. L["ne l'a pas"]
-end
-
 local function infobulle(self)
     local T = ns.Theme
     local m = VH.moi()
@@ -300,7 +370,7 @@ local function infobulle(self)
     if guilde() and ns.Reglages.get("vhGuilde") ~= false then
         local l = VH.classement()
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine(L["Guilde : %d joueur(s), %d avec SuperRsk"]:format(#l, VH.compterAddon(l)), 0.31, 0.85, 1)
+        GameTooltip:AddLine(L["Guilde"], 0.31, 0.85, 1)
         local top = tonumber(ns.Reglages.get("vhTop")) or 10
         local maPlace
         for i, e in ipairs(l) do if e.moi then maPlace = i end end
@@ -316,7 +386,6 @@ local function infobulle(self)
             GameTooltip:AddLine(L["Les membres qui ont SuperRsk apparaissent en se connectant ; les autres quand tu passes près d'eux."], 0.6, 0.6, 0.6, true)
         end
     end
-    if guilde() and ns.Reglages.get("vhGuilde") ~= false then GameTooltip:AddLine(legende(), 0.6, 0.6, 0.6) end
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine(L["Clic : classement complet. Glisser : déplacer."], 0.5, 0.5, 0.5)
     GameTooltip:Show()
@@ -325,7 +394,7 @@ end
 -- Liste complète (clic sur le widget) --------------------------------------
 
 local liste
-local LIGNE_VH = 18
+local LIGNE_VH = 20
 local derniereDemande = -1000
 VH.RELANCE = 60   -- au plus une demande à la guilde par minute en ouvrant la liste
 
@@ -333,34 +402,76 @@ local function classementVisible()
     return guilde() and ns.Reglages.get("vhGuilde") ~= false
 end
 
+-- Colonnes : rang (aligné à droite), boussole, nom, « vu le », total.
+local LARGEUR_VH, COL_RANG, COL_ICONE, COL_NOM = 300, 26, 14, 34 + 14 + 6
+local MEDAILLES = { { 1, 0.82, 0 }, { 0.75, 0.75, 0.75 }, { 0.8, 0.5, 0.2 } }
+
+local function cheminIcone() return "Interface\\AddOns\\" .. ADDON .. "\\Media\\Icones\\boussole" end
+
 local function ligneListe(i)
     local r = liste.lignes[i]
     if r then return r end
+    local T, C = ns.Theme, ns.Controles
     r = CreateFrame("Frame", nil, liste.contenu)
     r:SetSize(liste.contenu:GetWidth(), LIGNE_VH)
     r:SetPoint("TOPLEFT", 0, -(i - 1) * LIGNE_VH)
-    r.gauche = ns.Controles.texte(r, "petit", "texte")
-    r.gauche:SetPoint("LEFT", 4, 0)
-    r.droite = ns.Controles.texte(r, "petit", "texte")
-    r.droite:SetPoint("RIGHT", -4, 0)
+    if i % 2 == 0 then
+        local zebre = r:CreateTexture(nil, "BACKGROUND")
+        zebre:SetAllPoints()
+        zebre:SetColorTexture(1, 1, 1, 0.03)
+    end
+    r.rang = C.texte(r, "petit", "texteDoux")
+    r.rang:SetPoint("LEFT", 4, 0)
+    r.rang:SetWidth(COL_RANG)
+    r.rang:SetJustifyH("RIGHT")
+    r.icone = r:CreateTexture(nil, "ARTWORK")
+    r.icone:SetSize(COL_ICONE, COL_ICONE)
+    r.icone:SetPoint("LEFT", 4 + COL_RANG + 6, 0)
+    r.icone:SetTexture(cheminIcone())
+    r.total = C.texte(r, "petit", "texte")
+    r.total:SetPoint("RIGHT", -6, 0)
+    r.total:SetWidth(44)
+    r.total:SetJustifyH("RIGHT")
+    r.vu = C.texte(r, "petit", "textePale")
+    r.vu:SetPoint("RIGHT", r.total, "LEFT", -8, 0)
+    r.vu:SetJustifyH("RIGHT")
+    r.nom = C.texte(r, "petit", "texte")
+    r.nom:SetPoint("LEFT", 4 + COL_NOM + 6, 0)
+    r.nom:SetPoint("RIGHT", r.vu, "LEFT", -6, 0)
+    r.nom:SetJustifyH("LEFT")
+    r.nom:SetWordWrap(false)
     liste.lignes[i] = r
     return r
 end
 
 local function remplirListe()
-    local l = classementVisible() and VH.classement() or {}
-    local m = VH.moi()
-    liste.sous:SetText(classementVisible() and L["Guilde : %d joueur(s), %d avec SuperRsk"]:format(#l, VH.compterAddon(l))
-        or L["Toi : %s au total, %s aujourd'hui"]:format(VH.nombre(m.total), VH.nombre(m.jour)))
+    local T = ns.Theme
+    local tous = liste.onglet == "monde"
+    for nom, b in pairs(liste.onglets) do
+        b.texte:SetTextColor(T.rgb(nom == liste.onglet and "accent" or "texteDoux"))
+    end
+    local visible = tous and ns.Reglages.get("vhMonde") ~= false or (not tous and classementVisible())
+    local l = visible and (tous and VH.classementMonde() or VH.classement()) or {}
     for i, e in ipairs(l) do
         local r = ligneListe(i)
-        r.gauche:SetText(gaucheClassement(i, e))
-        r.droite:SetText(VH.nombre(e.total))
+        local med = MEDAILLES[i]
+        r.rang:SetText(i .. ".")
+        if med then r.rang:SetTextColor(unpack(med)) else r.rang:SetTextColor(T.rgb("texteDoux")) end
+        if e.addon then r.icone:SetVertexColor(T.rgb("accent")) else r.icone:SetVertexColor(T.rgb("textePale")) end
+        r.nom:SetText("|c" .. couleurClasse(e.classe) .. e.nom .. "|r" .. (e.moi and (" |cff4fd8ff" .. L["(toi)"] .. "|r") or ""))
+        r.vu:SetText(e.vu and date and date("%d/%m", e.vu) or "")
+        r.total:SetText(VH.nombre(e.total))
         r:Show()
     end
     for i = #l + 1, #liste.lignes do liste.lignes[i]:Hide() end
     liste.contenu:SetHeight(math.max(1, #l * LIGNE_VH))
-    if not classementVisible() then
+    if tous and not visible then
+        liste.vide:SetText(L["Coupé : option « Partager avec mes groupes » du module."])
+        liste.vide:Show()
+    elseif tous and #l <= 1 then
+        liste.vide:SetText(L["Les joueurs qui ont SuperRsk apparaissent quand tu es en groupe, en raid ou en champ de bataille avec eux."])
+        liste.vide:Show()
+    elseif not visible then
         liste.vide:SetText(L["Le classement de la guilde demande une guilde et l'option « Partager avec ma guilde »."])
         liste.vide:Show()
     elseif #l <= 1 then
@@ -374,35 +485,46 @@ end
 local function creerListe()
     local T, C = ns.Theme, ns.Controles
     liste = CreateFrame("Frame", "SuperGuideVHListe", UIParent)
-    liste:SetSize(270, 340)
+    liste:SetSize(LARGEUR_VH, 352)
     liste:SetFrameStrata("DIALOG")
     liste:SetClampedToScreen(true)
     liste:EnableMouse(true)
     T.fond(liste, "panneau", 0.96, "bordFort")
+    -- En-tête : titre et croix, puis les onglets.
     liste.titre = C.texte(liste, "texte", "texte")
-    liste.titre:SetPoint("TOPLEFT", 12, -10)
+    liste.titre:SetPoint("TOPLEFT", 12, -12)
     liste.titre:SetText(L["Victoires honorables"])
-    liste.sous = C.texte(liste, "petit", "accent")
-    liste.sous:SetPoint("TOPLEFT", liste.titre, "BOTTOMLEFT", 0, -4)
     local fermer = C.bouton(liste, "X", "texteDoux", function() liste:Hide() end, 24)
     fermer:SetPoint("TOPRIGHT", -8, -8)
+    -- Onglets : Guilde / Tout le monde.
+    liste.onglet, liste.onglets = "guilde", {}
+    local xo = 12
+    for _, o in ipairs({ { "guilde", L["Guilde"] }, { "monde", L["Tout le monde"] } }) do
+        local b = C.bouton(liste, o[2], "texteDoux", function() liste.onglet = o[1]; remplirListe() end, 110)
+        b:SetPoint("TOPLEFT", xo, -36)
+        liste.onglets[o[1]] = b
+        xo = xo + 116
+    end
+    -- Séparateur, puis la liste qui défile (marge en bas : rien de coupé).
+    local trait = liste:CreateTexture(nil, "ARTWORK")
+    trait:SetColorTexture(T.rgb("bord"))
+    trait:SetHeight(1)
+    trait:SetPoint("TOPLEFT", 8, -68)
+    trait:SetPoint("TOPRIGHT", -8, -68)
     local defile = CreateFrame("ScrollFrame", nil, liste)
-    defile:SetPoint("TOPLEFT", 8, -50)
-    defile:SetPoint("BOTTOMRIGHT", -8, 10)
+    defile:SetPoint("TOPLEFT", 8, -74)
+    defile:SetPoint("BOTTOMRIGHT", -8, 12)
     liste.contenu = CreateFrame("Frame", nil, defile)
-    liste.contenu:SetSize(254, 1)
+    liste.contenu:SetSize(LARGEUR_VH - 16, 1)
     defile:SetScrollChild(liste.contenu)
     defile:EnableMouseWheel(true)
     defile:SetScript("OnMouseWheel", function(self, d)
         local max = math.max(0, liste.contenu:GetHeight() - self:GetHeight())
         self:SetVerticalScroll(math.min(max, math.max(0, self:GetVerticalScroll() - d * LIGNE_VH * 3)))
     end)
-    liste.legende = C.texte(liste, "petit", "texteDoux")
-    liste.legende:SetPoint("TOPRIGHT", -40, -30)
-    liste.legende:SetText(legende())
     liste.vide = C.texte(liste, "petit", "texteDoux")
-    liste.vide:SetPoint("BOTTOMLEFT", 12, 12)
-    liste.vide:SetPoint("BOTTOMRIGHT", -12, 12)
+    liste.vide:SetPoint("BOTTOMLEFT", 12, 14)
+    liste.vide:SetPoint("BOTTOMRIGHT", -12, 14)
     liste.lignes = {}
     liste:Hide()
     if UISpecialFrames then table.insert(UISpecialFrames, "SuperGuideVHListe") end
