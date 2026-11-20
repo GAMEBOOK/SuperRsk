@@ -515,11 +515,93 @@ local function arbreSpecialisation()
     return t and role and t[role] or nil
 end
 
+-- Nœuds de talents (système récent, C_ClassTalents + C_Traits, présent sur
+-- Forever) : { x, sort, rang, max } pour chacun. nil si illisible.
+local function noeudsTalents()
+    local CT, T = C_ClassTalents, C_Traits
+    if not (CT and CT.GetActiveConfigID and T and T.GetConfigInfo and T.GetTreeNodes) then return nil end
+    local ok, liste = pcall(function()
+        local c = CT.GetActiveConfigID()
+        local info = c and T.GetConfigInfo(c)
+        if not (info and info.treeIDs) then return nil end
+        local l = {}
+        for _, arbre in ipairs(info.treeIDs) do
+            for _, id in ipairs(T.GetTreeNodes(arbre) or {}) do
+                local n = T.GetNodeInfo(c, id)
+                if n then
+                    local sort
+                    if (n.currentRank or 0) > 0 and n.activeEntry then
+                        local e = T.GetEntryInfo(c, n.activeEntry.entryID)
+                        local d = e and e.definitionID and T.GetDefinitionInfo(e.definitionID)
+                        sort = d and d.spellID
+                    end
+                    l[#l + 1] = { x = n.posX, sort = sort, rang = n.currentRank or 0, max = n.maxRanks }
+                end
+            end
+        end
+        return l
+    end)
+    return ok and liste or nil
+end
+
+-- Talents pris : [identifiant de sort] = { rang, max }. nil si illisible.
+function Jeu.talents()
+    local l = noeudsTalents()
+    if not l then return nil end
+    local t = {}
+    for _, n in ipairs(l) do
+        if n.sort and n.rang > 0 then t[n.sort] = { rang = n.rang, max = n.max or n.rang } end
+    end
+    return t
+end
+
+-- Forever pose les trois arbres côte à côte (colonnes espacées de 600) :
+-- on groupe les positions horizontales, un écart de plus de 1000 sépare deux
+-- arbres ; les groupes de moins de 3 nœuds (nœud isolé) sont ignorés. Rend
+-- les points mis dans chaque arbre, de gauche à droite ; nil si pas 3 arbres.
+function Jeu.pointsParArbre(noeuds)
+    local xs = {}
+    for _, n in ipairs(noeuds or {}) do if type(n.x) == "number" then xs[#xs + 1] = n.x end end
+    table.sort(xs)
+    local groupes, g = {}, nil
+    for _, x in ipairs(xs) do
+        if not g or x - g.max > 1000 then g = { min = x, max = x, n = 0 }; groupes[#groupes + 1] = g end
+        g.max, g.n = x, g.n + 1
+    end
+    local arbres = {}
+    for _, gr in ipairs(groupes) do if gr.n >= 3 then arbres[#arbres + 1] = gr end end
+    if #arbres ~= 3 then return nil end
+    local points = { 0, 0, 0 }
+    for _, n in ipairs(noeuds) do
+        if type(n.x) == "number" and n.rang > 0 then
+            for i, gr in ipairs(arbres) do
+                if n.x >= gr.min and n.x <= gr.max then points[i] = points[i] + n.rang end
+            end
+        end
+    end
+    return points
+end
+
+-- Arbre le plus rempli d'après les talents lus ; nil si aucun point ou égalité.
+local function arbrePoints()
+    local p = Jeu.pointsParArbre(noeudsTalents())
+    if not p then return nil end
+    local meilleur, max, egalite = nil, 0, false
+    for i, v in ipairs(p) do
+        if v > max then meilleur, max, egalite = i, v, false
+        elseif v == max and v > 0 then egalite = true end
+    end
+    if egalite then return nil end
+    return meilleur
+end
+
 -- Arbre qui a le plus de points ; nil si aucun point ou égalité. Sans
 -- GetNumTalentTabs (Forever), la spécialisation choisie. Second retour :
 -- d'où vient l'arbre (« points » ou « specialisation »), pour /sg spe.
 function Jeu.arbreTalents()
     if not GetNumTalentTabs or not GetTalentTabInfo then
+        local p = arbrePoints()
+        if p then return p, "points" end
         local a = arbreSpecialisation()
         return a, a and "role" or nil
     end
@@ -565,31 +647,6 @@ function Jeu.releveAuras(unite)
     return l
 end
 
--- Talents pris (système récent, C_ClassTalents + C_Traits, présent sur
--- Forever) : [identifiant de sort] = { rang, max }. nil si illisible.
-function Jeu.talents()
-    local CT, T = C_ClassTalents, C_Traits
-    if not (CT and CT.GetActiveConfigID and T and T.GetConfigInfo and T.GetTreeNodes) then return nil end
-    local ok, pris = pcall(function()
-        local c = CT.GetActiveConfigID()
-        local info = c and T.GetConfigInfo(c)
-        if not (info and info.treeIDs) then return nil end
-        local t = {}
-        for _, arbre in ipairs(info.treeIDs) do
-            for _, id in ipairs(T.GetTreeNodes(arbre) or {}) do
-                local n = T.GetNodeInfo(c, id)
-                if n and (n.currentRank or 0) > 0 and n.activeEntry then
-                    local e = T.GetEntryInfo(c, n.activeEntry.entryID)
-                    local d = e and e.definitionID and T.GetDefinitionInfo(e.definitionID)
-                    if d and d.spellID then t[d.spellID] = { rang = n.currentRank, max = n.maxRanks or n.currentRank } end
-                end
-            end
-        end
-        return t
-    end)
-    return ok and pris or nil
-end
-
 -- /sg spe : ce que le jeu rend (spécialisation, onglets de talents bruts),
 -- pour comprendre un arbre mal choisi sans /run.
 function Jeu.releveTalents()
@@ -601,6 +658,8 @@ function Jeu.releveTalents()
     else
         r.specialisation = "absent"
     end
+    local p = Jeu.pointsParArbre(noeudsTalents())
+    r.arbres = p and table.concat(p, " / ") or "illisibles"
     r.onglets = {}
     if GetNumTalentTabs and GetTalentTabInfo then
         local ok, n = pcall(GetNumTalentTabs)

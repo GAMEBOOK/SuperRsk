@@ -67,6 +67,7 @@ local ANGLAIS = {
     ["Bottes de l'éclaireur"] = "Scout's Boots",
     ["Os brisé"] = "Broken Bone",
     ["talent à Intelligence"] = "Intellect talent",
+    ["points par arbre"] = "points per tree",
     ["Patte de loup"] = "Wolf Paw",
     ["Vers le bas"] = "Downward",
     ["Vers le haut"] = "Upward",

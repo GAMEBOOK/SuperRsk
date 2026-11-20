@@ -104,8 +104,8 @@ local function demarrer()
     lancer(ns.Proposition.creer)
     lancer(ns.Proposition.brancherInfobulle)
     ns.Equipement.surProposition = ns.Proposition.montrer
-    inscrire("PLAYER_REGEN_ENABLED")
-    inscrire("PLAYER_EQUIPMENT_CHANGED")
+    -- Tous les déclencheurs de la vérification, dont l'objet ramassé (sacs).
+    for e in pairs(VERIFIER) do inscrire(e) end
     ns.Reglages.ecouter(function(cle) if CLES_EQUIPEMENT[cle] then demanderVerif() end end)
     demanderVerif()
 

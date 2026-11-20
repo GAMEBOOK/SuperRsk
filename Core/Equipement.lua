@@ -340,7 +340,7 @@ function Equipement.diagnostic()
             tostring(p.STR or 0), tostring(p.AGI or 0), tostring(p.INT or 0), tostring(p.SPI or 0), tostring(p.STA or 0)),
     }
     local r = jeu.releveTalents and jeu.releveTalents() or {}
-    lignes[#lignes + 1] = ("  " .. L["jeu"] .. " : specialisation %s · onglets %s"):format(tostring(r.specialisation), tostring(r.nbOnglets))
+    lignes[#lignes + 1] = ("  " .. L["jeu"] .. " : specialisation %s · onglets %s · " .. L["points par arbre"] .. " %s"):format(tostring(r.specialisation), tostring(r.nbOnglets), tostring(r.arbres))
     for i, t in ipairs(r.onglets or {}) do lignes[#lignes + 1] = ("  onglet %d : %s"):format(i, t) end
     local id, rang, max = Equipement.talentIntel()
     if id then
