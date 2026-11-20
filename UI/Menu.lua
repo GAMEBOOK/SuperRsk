@@ -432,16 +432,17 @@ local ONGLETS = {}
 -- Réglages du module dans le cadre q (cartes, puis Déplacer et boutons).
 local function construireReglages(q, m)
     local y = cartesOptions(q, 0, m.categories or { { titre = L["Réglages"], options = m.options } })
+    -- Boutons du module sur une ligne, à parts égales dans la largeur
+    -- (jamais plus de 200 px chacun, jamais au-delà du bord).
+    local actions = {}
+    if m.deplacer then actions[1] = { texte = L["Déplacer"], action = function() ns.Deplacement.ouvrir() end } end
+    for _, d in ipairs(m.boutons or {}) do actions[#actions + 1] = d end
     local x = 0
-    if m.deplacer then
-        local b = C.bouton(q.cadre, L["Déplacer"], "accent", function() ns.Deplacement.ouvrir() end, 140)
-        b:SetPoint("TOPLEFT", 0, y)
-        x = 148
-    end
-    for _, d in ipairs(m.boutons or {}) do
-        local b = C.bouton(q.cadre, d.texte, "accent", d.action, 180)
+    local largeur = #actions > 0 and math.min(200, math.floor((W - (#actions - 1) * 8) / #actions)) or 0
+    for _, d in ipairs(actions) do
+        local b = C.bouton(q.cadre, d.texte, "accent", d.action, largeur)
         b:SetPoint("TOPLEFT", x, y)
-        x = x + 188
+        x = x + largeur + 8
     end
     if x > 0 then y = y - 24 - 16 end
     local lignes = m.details and m.details() or {}

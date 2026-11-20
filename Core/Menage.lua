@@ -98,20 +98,24 @@ function Menage.expliquer()
     return lignes
 end
 
--- Jette les objets cochés, chacun seulement s'il est toujours à sa place.
--- Rend le nombre d'objets jetés.
+-- Jette le premier objet coché encore à sa place : le jeu n'accepte
+-- qu'une destruction par clic. Rend l'entrée jetée, ou nil.
 function Menage.jeter(selection)
-    local jeu, n = ns.Jeu, 0
+    local jeu = ns.Jeu
     for _, e in ipairs(selection) do
         local o = e.objet
-        if jeu.lienSac(o.sac, o.case) == o.lien and jeu.jeter(o.sac, o.case) then n = n + 1 end
+        if jeu.lienSac(o.sac, o.case) == o.lien then
+            if jeu.jeter(o.sac, o.case) then
+                jeu.message(L["Jeté : %s."]:format(o.lien .. (o.nombre > 1 and (" x" .. o.nombre) or "")))
+                return e
+            end
+            jeu.message(L["Le jeu a refusé de jeter %s : réessaie d'un clic."]:format(o.lien))
+            return nil
+        end
     end
-    if n > 0 then
-        jeu.message(L["Ménage : %d objets de quête jetés."]:format(n))
-    elseif #selection > 0 then
+    if #selection > 0 then
         jeu.message(L["Les objets ont bougé dans tes sacs : rien n'a été jeté. Rouvre le ménage."])
     end
-    return n
 end
 
 -- Après une quête rendue : les objets devenus sûrement inutiles, signalés

@@ -10,7 +10,25 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 local cadre
 local LARGEUR, LIGNE, VISIBLES = 560, 30, 10
-local liste, coches, decalage = {}, {}, 0
+-- tous : tout ce que le tri propose ; liste : ce qui est affiché. Les
+-- objets incertains (aucune preuve qu'ils ne servent plus : accès de raid,
+-- suite de chaîne inconnue…) restent masqués sauf demande.
+local tous, liste, coches, decalage = {}, {}, {}, 0
+local voirIncertains = false
+
+local function filtrer()
+    liste = {}
+    for _, e in ipairs(tous) do
+        if e.sur or voirIncertains then liste[#liste + 1] = e end
+    end
+    decalage = math.min(decalage, math.max(0, #liste - VISIBLES))
+end
+
+local function nbIncertains()
+    local n = 0
+    for _, e in ipairs(tous) do if not e.sur then n = n + 1 end end
+    return n
+end
 
 local function T() return ns.Theme end
 
@@ -40,11 +58,16 @@ local function dessiner()
         end
     end
     local n = nbCoches()
-    cadre.jeter.texte:SetText(L["Jeter la sélection (%d)"]:format(n))
+    cadre.jeter.texte:SetText(n > 1 and L["Jeter : encore %d clics"]:format(n) or L["Jeter la sélection (%d)"]:format(n))
     cadre.jeter:SetAlpha(n > 0 and 1 or 0.45)
     cadre.plus:SetText(#liste > VISIBLES and L["Molette : %d objets en tout"]:format(#liste) or "")
-    cadre.source:SetText(ns.Jeu.questieCharge() and L["Vérifié avec Questie quand il connaît l'objet."]
-        or L["Sans Questie : tri d'après ton journal, vérifie avant de jeter. Installe Questie pour un tri plus précis."])
+    cadre.source:SetText(ns.Jeu.questieCharge() and L["Proposés : objets dont toutes les quêtes sont terminées (Questie)."]
+        or L["Sans Questie, seuls les objets sûrs sont proposés. Installe Questie pour en trouver plus."])
+    local ni = nbIncertains()
+    cadre.incertains:SetShown(ni > 0)
+    cadre.incertains.texte:SetText(L["Montrer aussi les objets incertains (%d), à vérifier toi-même"]:format(ni))
+    cadre.incertains.boite:SetTexture(T().icone(voirIncertains and "case-cochee" or "case"))
+    cadre.incertains.boite:SetVertexColor(T().rgb(voirIncertains and "orange" or "texteDoux"))
 end
 
 -- Relit les sacs et les quêtes ; les sûrs sont cochés d'office.
@@ -56,8 +79,20 @@ function Menage.ouvrir()
         ns.Jeu.message(L["Pas pendant un combat : le ménage s'ouvrira à la fin du combat."])
         return
     end
-    liste, coches, decalage = Menage.liste(), {}, 0
-    for _, e in ipairs(liste) do coches[e] = e.sur end
+    -- Rouverte après un clic : les cases de chaque objet restent comme tu
+    -- les as laissées ; un nouvel objet prend la case par défaut.
+    local avant = {}
+    if cadre:IsShown() then
+        for e, c in pairs(coches) do avant[e.objet.lien] = c end
+    end
+    if not cadre:IsShown() then voirIncertains = false end
+    tous, coches, decalage = Menage.liste(), {}, 0
+    for _, e in ipairs(tous) do
+        local c = avant[e.objet.lien]
+        if c == nil then c = e.sur end
+        coches[e] = c
+    end
+    filtrer()
     cadre:Show()
     dessiner()
 end
@@ -73,12 +108,13 @@ function Menage.exemple(oui)
     if not cadre then return nil end
     if not oui then
         enExemple = false
-        liste, coches = {}, {}
+        tous, liste, coches = {}, {}, {}
         cadre:Hide()
         return cadre
     end
     enExemple = true
-    liste = {
+    voirIncertains = true
+    tous = {
         exemple("Sealed Letter", "INV_Letter_15", 1, true, L["sa quête est terminée"]),
         exemple("Wolf Paw", "INV_Misc_MonsterClaw_04", 8, true, L["sa quête est terminée"]),
         exemple("Murloc Fin", "INV_Misc_Fish_14", 6, true, L["toutes ses quêtes sont terminées"]),
@@ -86,7 +122,8 @@ function Menage.exemple(oui)
         exemple("Old Map Fragment", "INV_Misc_Map_01", 1, false, L["aucune quête en cours n'en parle"]),
     }
     coches, decalage = {}, 0
-    for _, e in ipairs(liste) do coches[e] = e.sur end
+    for _, e in ipairs(tous) do coches[e] = e.sur end
+    filtrer()
     cadre:Show()
     dessiner()
     return cadre
@@ -142,7 +179,7 @@ end
 function Menage.creer()
     local C = ns.Controles
     cadre = CreateFrame("Frame", "SuperGuideMenage", UIParent)
-    cadre:SetSize(LARGEUR, 44 + VISIBLES * LIGNE + 74)
+    cadre:SetSize(LARGEUR, 44 + VISIBLES * LIGNE + 98)
     cadre:SetFrameStrata("DIALOG")
     cadre:SetClampedToScreen(true)
     T().fond(cadre, "panneau", 0.97, "bordFort")
@@ -165,22 +202,41 @@ function Menage.creer()
     end)
 
     cadre.source = C.texte(cadre, "petit", "textePale")
-    cadre.source:SetPoint("BOTTOMLEFT", 14, 46)
+    cadre.source:SetPoint("BOTTOMLEFT", 14, 72)
     cadre.plus = C.texte(cadre, "petit", "accent")
-    cadre.plus:SetPoint("BOTTOMRIGHT", -14, 46)
+    cadre.plus:SetPoint("BOTTOMRIGHT", -14, 72)
+
+    -- Case « objets incertains » : décochée à chaque ouverture.
+    local inc = CreateFrame("Button", nil, cadre)
+    inc:SetSize(LARGEUR - 28, 20)
+    inc:SetPoint("BOTTOMLEFT", 12, 44)
+    inc.boite = inc:CreateTexture(nil, "ARTWORK")
+    inc.boite:SetSize(14, 14)
+    inc.boite:SetPoint("LEFT", 2, 0)
+    inc.texte = C.texte(inc, "petit", "orange")
+    inc.texte:SetPoint("LEFT", inc.boite, "RIGHT", 8, 0)
+    inc:SetScript("OnClick", function()
+        voirIncertains = not voirIncertains
+        filtrer()
+        dessiner()
+    end)
+    C.infobulle(inc, L["Objets incertains"], L["Rien ne prouve qu'ils ne servent plus : accès de raid ou de donjon, suite d'une chaîne, objet que Questie ne connaît pas. Ils ne sont jamais cochés pour toi : vérifie chacun avant de le jeter."])
+    cadre.incertains = inc
 
     cadre.jeter = C.bouton(cadre, L["Jeter la sélection (%d)"]:format(0), "rouge", function()
         if enExemple then return end
         local selection = {}
         for _, e in ipairs(liste) do if coches[e] then selection[#selection + 1] = e end end
         if #selection == 0 then return end
-        Menage.jeter(selection)
+        -- Un objet par clic (règle du jeu).
+        local jete = Menage.jeter(selection)
+        if jete then coches[jete] = false; dessiner() end
         -- Les sacs changent dans la foulée : on relit un peu après.
         ns.Jeu.plusTard(0.5, function() if cadre:IsShown() then Menage.ouvrir() end end)
     end, 200)
     cadre.jeter:SetPoint("BOTTOMRIGHT", -12, 12)
     cadre.jeter.texte:SetTextColor(T().rgb("rouge"))
-    C.infobulle(cadre.jeter, L["Jeter"], L["Détruit pour de bon les objets cochés."])
+    C.infobulle(cadre.jeter, L["Jeter"], L["Détruit pour de bon les objets cochés, un par clic (le jeu n'en permet pas plus)."])
     local tout = C.bouton(cadre, L["Tout cocher"], "texteDoux", function()
         for _, e in ipairs(liste) do coches[e] = true end
         dessiner()

@@ -288,7 +288,7 @@ local function rafraichir()
             widget.etat:SetText(L["Appât à poser · %s"]:format(touche))
             widget.etat:SetTextColor(T.rgb("orange"))
         else
-            widget.etat:SetText(Peche.arme() and L["Prêt à pêcher · %s pour lancer"]:format(touche)
+            widget.etat:SetText((apercu or Peche.arme()) and L["Prêt à pêcher · %s pour lancer"]:format(touche)
                 or L["Canne rangée"])
             widget.etat:SetTextColor(T.rgb("texteDoux"))
         end

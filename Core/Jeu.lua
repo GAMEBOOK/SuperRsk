@@ -421,14 +421,18 @@ function Jeu.lienSac(sac, case)
 end
 
 -- Détruit l'objet de cette case (prend l'objet, le jette). Rend true si fait.
+-- Le jeu n'accepte qu'une destruction par clic du joueur : un seul objet
+-- par appel. Refusé, l'objet repart du curseur vers son sac.
 function Jeu.jeter(sac, case)
     if CursorHasItem and CursorHasItem() then return false end
     C_Container.PickupContainerItem(sac, case)
+    if not (CursorHasItem and CursorHasItem()) then return false end
+    local ok = pcall(DeleteCursorItem)
     if CursorHasItem and CursorHasItem() then
-        DeleteCursorItem()
-        return true
+        ClearCursor()
+        return false
     end
-    return false
+    return ok
 end
 function Jeu.marchandOuvert() return MerchantFrame and MerchantFrame:IsShown() or false end
 function Jeu.peutReparer() return CanMerchantRepair and CanMerchantRepair() or false end

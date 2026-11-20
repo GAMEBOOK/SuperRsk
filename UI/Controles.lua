@@ -427,9 +427,15 @@ function Controles.touche(parent, o, largeur)
         end
         b.texte:SetText(Controles.nomTouche(t))
         -- Ce que cette touche fait d'habitude (elle le refait sans canne).
-        local action = t and GetBindingAction and GetBindingAction(t)
+        -- Même touche qu'une autre option (o.doublon) : on le dit.
+        if o.doublon and t and t ~= "" and R.get(o.doublon) == t then
+            f.remplace:SetText(L["même touche que la pêche : elle fait déjà tout"])
+            return
+        end
+        local action = t and t ~= "" and GetBindingAction and GetBindingAction(t)
         if action and action ~= "" then
-            local nom = GetBindingText and GetBindingText(action, "BINDING_NAME_") or action
+            -- Nom de l'action dans la langue du jeu (« Attaquer la cible »).
+            local nom = _G["BINDING_NAME_" .. action] or (GetBindingName and GetBindingName(action)) or action
             f.remplace:SetText(L["remplace « %s » le temps de pêcher"]:format(nom))
         else
             f.remplace:SetText("")
