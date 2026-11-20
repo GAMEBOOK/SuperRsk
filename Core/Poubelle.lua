@@ -17,12 +17,19 @@ Poubelle.RAPPEL = 30   -- « rien à jeter » au plus toutes les 30 s
 -- (on ne propose pas de jeter un gris qui se vend bien à l'hôtel des ventes).
 function Poubelle.valeur(o) return math.max(o.prix or 0, o.hv or 0) end
 
--- L'objet à proposer : celui qui vaut le moins, puis la plus petite pile.
+-- L'objet à proposer : celui qui vaut le moins (gris ou blanc, c'est le
+-- prix qui compte : un gris peut valoir plus qu'un blanc). À valeur égale,
+-- le gris d'abord, puis la plus petite pile.
+local function avant(o, v, choix, vChoix)
+    if v ~= vChoix then return v < vChoix end
+    if (o.commun or false) ~= (choix.commun or false) then return not o.commun end
+    return o.nombre < choix.nombre
+end
 function Poubelle.candidat(liste)
     local choix, vChoix
     for _, o in ipairs(liste or {}) do
         local v = Poubelle.valeur(o)
-        if not choix or v < vChoix or (v == vChoix and o.nombre < choix.nombre) then
+        if not choix or avant(o, v, choix, vChoix) then
             choix, vChoix = o, v
         end
     end
@@ -39,10 +46,19 @@ end
 
 local dernierRien = -1000
 
--- Sacs pleins : propose le candidat (ou dit qu'il n'y a rien à jeter).
+-- Sacs pleins : on propose ce qui coûte le moins à perdre.
+--   1. un objet sans valeur (gris ou blanc) : on le jette, il ne vaut rien ;
+--   2. sinon des objets de quête finis : le ménage (ils ne servent plus) ;
+--   3. sinon l'objet, gris ou blanc, qui vaut le moins.
+-- Les blancs écartent nourriture, potions, réactifs, munitions, quête…
 function Poubelle.surPlein()
     if R("butinPoubelle") == false then return nil end
-    local c = Poubelle.candidat(ns.Jeu.objetsMediocres())
+    local tous = {}
+    for _, o in ipairs(ns.Jeu.objetsMediocres()) do tous[#tous + 1] = o end
+    for _, o in ipairs(ns.Jeu.objetsCommuns and ns.Jeu.objetsCommuns() or {}) do tous[#tous + 1] = o end
+    local c = Poubelle.candidat(tous)
+    local n = ns.Menage and R("menageActif") ~= false and ns.Menage.nbSurs() or 0
+    if n > 0 and not (c and Poubelle.valeur(c) == 0) then c = { menage = n } end
     if c then
         if Poubelle.proposer then Poubelle.proposer(c) end
         return c
@@ -50,12 +66,7 @@ function Poubelle.surPlein()
     local t = GetTime and GetTime() or 0
     if t - dernierRien >= Poubelle.RAPPEL then
         dernierRien = t
-        local n = ns.Menage and R("menageActif") ~= false and ns.Menage.nbSurs() or 0
-        if n > 0 then
-            ns.Jeu.message(L["Sacs pleins, aucun gris à jeter, mais %d objets de quête ne servent plus : /sg menage."]:format(n))
-        else
-            ns.Jeu.message(L["Sacs pleins, et aucun objet gris à jeter."])
-        end
+        ns.Jeu.message(L["Sacs pleins, et rien que l'on puisse jeter sans risque."])
     end
     return nil
 end
@@ -66,7 +77,10 @@ function Poubelle.jeter(c)
         ns.Jeu.message(L["L'objet a bougé dans tes sacs : rien n'a été jeté."])
         return false
     end
-    if not ns.Jeu.jeter(c.sac, c.case) then return false end
+    return ns.Jeu.jeter(c.sac, c.case) and true or false
+end
+
+-- Le joueur a confirmé la destruction dans la fenêtre du jeu.
+function Poubelle.confirmer(c)
     ns.Jeu.message(L["Jeté : %s (%s)."]:format(c.lien, Poubelle.textePrix(c)))
-    return true
 end

@@ -98,18 +98,16 @@ function Menage.expliquer()
     return lignes
 end
 
--- Jette le premier objet coché encore à sa place : le jeu n'accepte
--- qu'une destruction par clic. Rend l'entrée jetée, ou nil.
+-- Met dans la main le premier objet coché encore à sa place : le joueur
+-- clique dans le vide et le jeu demande confirmation. Un objet par clic.
+-- Rend l'entrée prise, ou nil. Le message vient après la confirmation.
 function Menage.jeter(selection)
     local jeu = ns.Jeu
     for _, e in ipairs(selection) do
         local o = e.objet
         if jeu.lienSac(o.sac, o.case) == o.lien then
-            if jeu.jeter(o.sac, o.case) then
-                jeu.message(L["Jeté : %s."]:format(o.lien .. (o.nombre > 1 and (" x" .. o.nombre) or "")))
-                return e
-            end
-            jeu.message(L["Le jeu a refusé de jeter %s : réessaie d'un clic."]:format(o.lien))
+            if jeu.jeter(o.sac, o.case) then return e end
+            jeu.message(L["Impossible de prendre %s : réessaie d'un clic."]:format(o.lien))
             return nil
         end
     end

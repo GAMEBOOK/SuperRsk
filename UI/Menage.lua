@@ -230,13 +230,19 @@ function Menage.creer()
         if #selection == 0 then return end
         -- Un objet par clic (règle du jeu).
         local jete = Menage.jeter(selection)
-        if jete then coches[jete] = false; dessiner() end
+        if jete then
+            coches[jete] = false
+            dessiner()
+            local o = jete.objet
+            C.aideJeter(function() return ns.Jeu.lienSac(o.sac, o.case) ~= o.lien end,
+                function() ns.Jeu.message(L["Jeté : %s."]:format(o.lien .. (o.nombre > 1 and (" x" .. o.nombre) or ""))) end)
+        end
         -- Les sacs changent dans la foulée : on relit un peu après.
         ns.Jeu.plusTard(0.5, function() if cadre:IsShown() then Menage.ouvrir() end end)
     end, 200)
     cadre.jeter:SetPoint("BOTTOMRIGHT", -12, 12)
     cadre.jeter.texte:SetTextColor(T().rgb("rouge"))
-    C.infobulle(cadre.jeter, L["Jeter"], L["Détruit pour de bon les objets cochés, un par clic (le jeu n'en permet pas plus)."])
+    C.infobulle(cadre.jeter, L["Jeter"], L["Un clic met un objet coché dans ta main : clique ensuite dans le vide puis sur Oui, le jeu le détruit. Un objet à la fois (seule façon permise par le jeu)."])
     local tout = C.bouton(cadre, L["Tout cocher"], "texteDoux", function()
         for _, e in ipairs(liste) do coches[e] = true end
         dessiner()

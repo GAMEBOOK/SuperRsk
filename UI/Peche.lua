@@ -10,6 +10,7 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 local function R(cle) return ns.Reglages.get(cle) end
 
 local proprio, lanceur, widget
+local proprioTenue, boutonTenue   -- touche « Tenue de pêche » (plus bas)
 local apercu = false
 local ligneFin, ligneDuree   -- canal en cours (secondes, horloge GetTime)
 
@@ -42,6 +43,7 @@ function Peche.lier(touche, mode)
     if mode == "lancer" then
         SetOverrideBindingClick(proprio, true, touche, lanceur:GetName(), "LeftButton")
     elseif mode == "sortir" then
+        if not boutonTenue then lieTouche, lieMode = nil, nil; return end
         SetOverrideBindingClick(proprio, true, touche, boutonTenue:GetName(), "RightButton")
     else
         SetOverrideBinding(proprio, true, touche, "INTERACTTARGET")
@@ -67,7 +69,6 @@ end
 -- Touche « Tenue de pêche » : choisie dans le module (liaison prioritaire
 -- tant que la session dure) ou dans Raccourcis > SuperRsk. Moins prioritaire
 -- que la touche de pêche si c'est la même.
-local proprioTenue, boutonTenue
 local function lierTenue()
     if not proprioTenue or InCombatLockdown() then return end
     ClearOverrideBindings(proprioTenue)

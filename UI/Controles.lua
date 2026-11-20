@@ -46,6 +46,56 @@ function Controles.bouton(parent, texte, couleur, rappel, largeur)
     return b
 end
 
+-- Bulle qui suit la souris pendant qu'un objet à jeter est dans la main :
+-- le jeu ne laisse détruire que par sa propre confirmation, on guide le
+-- joueur jusqu'au « Oui ». Disparaît dès que la main est vide.
+local bulle
+local function popupDestruction()
+    if not StaticPopup_FindVisible then return false end
+    return StaticPopup_FindVisible("DELETE_ITEM") or StaticPopup_FindVisible("DELETE_GOOD_ITEM")
+        or StaticPopup_FindVisible("DELETE_QUEST_ITEM") or StaticPopup_FindVisible("DELETE_GOOD_QUEST_ITEM")
+end
+-- « fait() » rend vrai si l'objet a bien quitté son sac ; « confirme() »
+-- est appelé alors, seulement si le joueur est passé par la confirmation.
+function Controles.aideJeter(fait, confirme)
+    if not bulle then
+        bulle = CreateFrame("Frame", nil, UIParent)
+        bulle:SetFrameStrata("TOOLTIP")
+        bulle:SetSize(10, 10)
+        T().fond(bulle, "panneau", 0.95, "orange")
+        bulle.texte = Controles.texte(bulle, "petit", "texte")
+        bulle.texte:SetPoint("CENTER")
+        bulle.texte:SetJustifyH("CENTER")
+        bulle:SetScript("OnUpdate", function(self)
+            local popup = popupDestruction()
+            local main = CursorHasItem and CursorHasItem()
+            if popup then self.vuPopup = true end
+            if not (popup or main) or GetTime() > self.jusqua then
+                self:Hide()
+                if self.vuPopup and self.fait and self.fait() and self.confirme then self.confirme() end
+                return
+            end
+            local t = popup and L["Clique sur |cff66ff66Oui|r pour le détruire"]
+                or L["Clique dans le vide (hors des fenêtres) pour le détruire"]
+            if self.texte:GetText() ~= t then
+                self.texte:SetText(t)
+                self:SetSize((self.texte:GetStringWidth() or 200) + 20, 26)
+            end
+            local x, y = GetCursorPosition()
+            local e = UIParent:GetEffectiveScale()
+            self:ClearAllPoints()
+            self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", x / e + 18, y / e - 34)
+        end)
+    end
+    bulle.texte:SetText("")
+    bulle.jusqua = GetTime() + 30
+    bulle.vuPopup, bulle.fait, bulle.confirme = false, fait, confirme
+    bulle:Show()
+    if UIErrorsFrame then
+        UIErrorsFrame:AddMessage(L["Clique dans le vide (hors des fenêtres) pour le détruire"], 1, 0.82, 0)
+    end
+end
+
 -- Carte : fond légèrement plus clair, liseré.
 function Controles.carte(parent)
     local c = CreateFrame("Frame", nil, parent)

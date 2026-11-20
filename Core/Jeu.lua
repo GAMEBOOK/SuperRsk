@@ -393,6 +393,17 @@ function Jeu.prixHV(lien)
     return ok and tonumber(p) or nil
 end
 
+-- Places libres dans les sacs normaux (ni carquois, ni sacs de métier).
+function Jeu.placesLibres()
+    if not (C_Container and C_Container.GetContainerNumFreeSlots) then return nil end
+    local n = 0
+    for sac = 0, 4 do
+        local libres, famille = C_Container.GetContainerNumFreeSlots(sac)
+        if (famille or 0) == 0 then n = n + (libres or 0) end
+    end
+    return n
+end
+
 -- Tous les objets gris des sacs, même sans valeur :
 -- { sac, case, lien, icone, prix (marchand, total), hv (total ou nil), nombre }.
 function Jeu.objetsMediocres()
@@ -416,23 +427,46 @@ function Jeu.objetsMediocres()
     return liste
 end
 
+-- Sans gris : les objets blancs qu'on peut sacrifier, même format.
+-- Jamais : consommables (nourriture, potions), sacs, réactifs, munitions,
+-- carquois, objets de quête, clés, ni ce qui ne se vend pas (pierre de
+-- foyer, objets spéciaux).
+local GARDER = { [0] = true, [1] = true, [5] = true, [6] = true, [11] = true, [12] = true, [13] = true }
+function Jeu.objetsCommuns()
+    local liste = {}
+    if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
+    for sac = 0, 4 do
+        local _, famille = C_Container.GetContainerNumFreeSlots and C_Container.GetContainerNumFreeSlots(sac)
+        local normal = (famille or 0) == 0
+        for case = 1, normal and (C_Container.GetContainerNumSlots(sac) or 0) or 0 do
+            local info = C_Container.GetContainerItemInfo(sac, case)
+            if info and info.quality == 1 and info.hyperlink and not info.hasNoValue and not info.isLocked then
+                local classe = select(6, C_Item.GetItemInfoInstant(info.hyperlink))
+                local prix = select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
+                if classe and not GARDER[classe] and prix > 0 then
+                    local n = info.stackCount or 1
+                    local hv = Jeu.prixHV(info.hyperlink)
+                    liste[#liste + 1] = { sac = sac, case = case, lien = info.hyperlink, icone = info.iconFileID,
+                                          prix = prix * n, hv = hv and hv * n or nil, nombre = n, commun = true }
+                end
+            end
+        end
+    end
+    return liste
+end
+
 function Jeu.lienSac(sac, case)
     return C_Container and C_Container.GetContainerItemLink and C_Container.GetContainerItemLink(sac, case)
 end
 
--- Détruit l'objet de cette case (prend l'objet, le jette). Rend true si fait.
--- Le jeu n'accepte qu'une destruction par clic du joueur : un seul objet
--- par appel. Refusé, l'objet repart du curseur vers son sac.
+-- Met l'objet de cette case dans la main du joueur, prêt à être jeté.
+-- Sur ce serveur, détruire un objet est réservé au jeu lui-même (même sur
+-- un clic) : le joueur clique dans le vide et le jeu demande « Détruire ? ».
+-- Rend true si l'objet est dans la main.
 function Jeu.jeter(sac, case)
-    if CursorHasItem and CursorHasItem() then return false end
+    if CursorHasItem and CursorHasItem() then ClearCursor() end
     C_Container.PickupContainerItem(sac, case)
-    if not (CursorHasItem and CursorHasItem()) then return false end
-    local ok = pcall(DeleteCursorItem)
-    if CursorHasItem and CursorHasItem() then
-        ClearCursor()
-        return false
-    end
-    return ok
+    return CursorHasItem and CursorHasItem() or false
 end
 function Jeu.marchandOuvert() return MerchantFrame and MerchantFrame:IsShown() or false end
 function Jeu.peutReparer() return CanMerchantRepair and CanMerchantRepair() or false end

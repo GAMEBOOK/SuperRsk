@@ -17,9 +17,30 @@ end
 
 local function afficher(c)
     courant = c
-    cadre.icone:SetTexture(c.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
-    cadre.nom:SetText(c.lien .. (c.nombre > 1 and (" x" .. c.nombre) or ""))
-    cadre.valeur:SetText(Poubelle.textePrix(c))
+    if c.menage then
+        -- Pas de gris : on propose le ménage des objets de quête finis.
+        cadre.titre:SetText(L["Sacs pleins : des objets de quête ne servent plus"])
+        cadre.icone:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+        cadre.nom:SetText(L["%d objets de quête terminés"]:format(c.menage))
+        cadre.valeur:SetText(L["Leurs quêtes sont finies : de la place à gagner"])
+        cadre.oui.texte:SetText(L["Voir"])
+        cadre.oui.texte:SetTextColor(ns.Theme.rgb("accent"))
+    else
+        cadre.titre:SetText(c.commun and L["Sacs pleins : jeter l'objet qui vaut le moins ?"]
+            or L["Sacs pleins : jeter l'objet gris le moins cher ?"])
+        cadre.icone:SetTexture(c.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
+        cadre.nom:SetText(c.lien .. (c.nombre > 1 and (" x" .. c.nombre) or ""))
+        cadre.valeur:SetText(Poubelle.textePrix(c))
+        cadre.oui.texte:SetText(L["Jeter"])
+        cadre.oui.texte:SetTextColor(ns.Theme.rgb("rouge"))
+    end
+    -- Largeur au plus juste : icône + texte le plus long + boutons, sans
+    -- descendre sous la largeur du titre.
+    local texte = math.max(cadre.nom:GetStringWidth() or 0, cadre.valeur:GetStringWidth() or 0)
+    local l = math.max((cadre.titre:GetStringWidth() or 0) + 20, 46 + texte + 12 + 118)
+    cadre:SetWidth(math.min(440, math.ceil(l)))
+    cadre.nom:SetWidth(cadre:GetWidth() - 46 - 124)
+    cadre.valeur:SetWidth(cadre:GetWidth() - 46 - 124)
     cadre.jusqua = (GetTime and GetTime() or 0) + Poubelle.DUREE
     cadre:Show()
 end
@@ -50,25 +71,26 @@ end
 function Poubelle.creer()
     local T, C = ns.Theme, ns.Controles
     cadre = CreateFrame("Frame", "SuperGuidePoubelle", UIParent)
-    cadre:SetSize(360, 74)
+    cadre:SetSize(320, 74)
     cadre:SetFrameStrata("DIALOG")
     cadre:SetClampedToScreen(true)
     T.fond(cadre, "panneau", 0.96, "bordFort")
     local titre = C.texte(cadre, "petit", "orange")
     titre:SetPoint("TOPLEFT", 10, -8)
     titre:SetText(L["Sacs pleins : jeter l'objet gris le moins cher ?"])
+    cadre.titre = titre
     cadre.icone = cadre:CreateTexture(nil, "ARTWORK")
     cadre.icone:SetSize(28, 28)
     cadre.icone:SetPoint("TOPLEFT", 10, -26)
     cadre.icone:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     cadre.nom = C.texte(cadre, "petit", "texte")
     cadre.nom:SetPoint("TOPLEFT", cadre.icone, "TOPRIGHT", 8, -1)
-    cadre.nom:SetWidth(190)
+    cadre.nom:SetWidth(150)
     cadre.nom:SetJustifyH("LEFT")
     cadre.nom:SetWordWrap(false)
     cadre.valeur = C.texte(cadre, "petit", "texteDoux")
     cadre.valeur:SetPoint("TOPLEFT", cadre.nom, "BOTTOMLEFT", 0, -3)
-    cadre.valeur:SetWidth(190)
+    cadre.valeur:SetWidth(150)
     cadre.valeur:SetJustifyH("LEFT")
     cadre.valeur:SetWordWrap(false)
     local non = C.bouton(cadre, "X", "texteDoux", fermer, 24)
@@ -77,10 +99,18 @@ function Poubelle.creer()
         if enApercu then return end
         local c = courant
         fermer()
-        Poubelle.jeter(c)
+        if c and c.menage then
+            if ns.Menage and ns.Menage.ouvrir then ns.Menage.ouvrir() end
+            return
+        end
+        if Poubelle.jeter(c) then
+            C.aideJeter(function() return ns.Jeu.lienSac(c.sac, c.case) ~= c.lien end,
+                function() Poubelle.confirmer(c) end)
+        end
     end, 80)
     oui:SetPoint("RIGHT", non, "LEFT", -6, 0)
-    C.infobulle(oui, L["Jeter"], L["Détruit cet objet pour de bon et libère une place dans tes sacs."])
+    cadre.oui = oui
+    C.infobulle(oui, L["Jeter"], L["Met l'objet dans ta main : clique ensuite dans le vide puis sur Oui, le jeu le détruit (seule façon permise par le jeu)."])
     cadre:SetScript("OnUpdate", function(self)
         if self.jusqua and (GetTime and GetTime() or 0) > self.jusqua then fermer() end
     end)
@@ -93,6 +123,16 @@ function Poubelle.creer()
     end)
     -- Fermée (jeter, X, délai) : la fenêtre suivante prend la place.
     cadre:SetScript("OnHide", function() if not enApercu then ns.File.fini("poubelle") end end)
+    -- Les sacs viennent de se remplir (achat, quête, échange…) : même
+    -- proposition que lorsqu'un butin ne rentre plus.
+    local libresAvant
+    local ev = CreateFrame("Frame")
+    ev:RegisterEvent("BAG_UPDATE_DELAYED")
+    ev:SetScript("OnEvent", function()
+        local n = ns.Jeu.placesLibres()
+        if n == 0 and libresAvant and libresAvant > 0 and not InCombatLockdown() then Poubelle.surPlein() end
+        libresAvant = n
+    end)
     cadre:Hide()
     if ns.Deplacement then
         ns.Deplacement.inscrire(cadre, L["Poubelle (sacs pleins)"], "poubelle", { "TOP", 0, -220 })

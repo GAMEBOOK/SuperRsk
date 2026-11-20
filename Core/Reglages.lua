@@ -451,11 +451,12 @@ local function borner(o, v)
         v = tostring(v):gsub("^%s+", ""):gsub("%s+$", "")
         return v:sub(1, o.max or 24)
     elseif o.type == "touche" then
-        -- « T », « SHIFT-F », « BUTTON4 », « MOUSEWHEELUP »…
+        -- « T », « SHIFT-F », « BUTTON4 », « MOUSEWHEELUP », et toutes les
+        -- touches hors alphabet que le jeu nomme (²  &  é  ù  ,  ;  [ …).
         if type(v) ~= "string" then return nil end
         if v == "" then return "" end   -- aucune touche
         v = v:upper()
-        return v:match("^[%w%-]+$") and #v <= 40 and v or nil
+        return v:match("^[^%s%c]+$") and #v <= 40 and v or nil
     elseif o.type == "texture" then
         return type(v) == "string" and v ~= "" and v or nil
     elseif o.type == "couleur" then
