@@ -328,7 +328,7 @@ function Equipement.diagnostic()
     local classe, niveau = jeu.joueur().classe, jeu.niveau()
     local brut, source = Equipement.arbreJoueur()
     local arbre, d = Equipement.arbreRetenu(classe, brut, source, niveau)
-    local p = Equipement.poids(classe, brut, niveau) or {}
+    local p = Equipement.poidsJoueur() or {}
     local role = jeu.roleSpecialisation and jeu.roleSpecialisation()
     local lignes = {
         ("Auto Equip : %s " .. L["niv."] .. " %s, " .. L["rôle"] .. " %s, " .. L["arbre"] .. " %s (%s)"):format(tostring(classe), tostring(niveau),
@@ -342,13 +342,60 @@ function Equipement.diagnostic()
     local r = jeu.releveTalents and jeu.releveTalents() or {}
     lignes[#lignes + 1] = ("  " .. L["jeu"] .. " : specialisation %s · onglets %s"):format(tostring(r.specialisation), tostring(r.nbOnglets))
     for i, t in ipairs(r.onglets or {}) do lignes[#lignes + 1] = ("  onglet %d : %s"):format(i, t) end
+    local id, rang, max = Equipement.talentIntel()
+    if id then
+        local nom = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or tostring(id)
+        lignes[#lignes + 1] = ("  " .. L["talent à Intelligence"] .. " : %s %d/%d"):format(nom, rang, max)
+    end
     return lignes
 end
 
--- Poids du personnage (classe, arbre principal, niveau).
+-- Talents qui transforment l'Intelligence en puissance. L'Intelligence monte
+-- alors vers 80 % de la stat principale, selon les points mis (5/5 : 80 %).
+Equipement.TALENTS_INTEL = {
+    [1311084] = true,   -- Champion de la lumière (paladin)
+}
+local avecIntel = setmetatable({}, { __mode = "k" })
+function Equipement.ajusterIntel(p, part)
+    part = math.max(0, math.min(1, part or 1))
+    local principal = math.max(p.STR or 0, p.AGI or 0, p.INT or 0)
+    local base = p.INT or 0
+    local cible = base + (0.8 * principal - base) * part
+    if cible <= base then return p end
+    avecIntel[p] = avecIntel[p] or {}
+    if not avecIntel[p][part] then
+        local c = {}
+        for k, v in pairs(p) do c[k] = v end
+        c.INT = cible
+        avecIntel[p][part] = c
+    end
+    return avecIntel[p][part]
+end
+
+-- Talent à Intelligence pris : identifiant, rang, max (relu toutes les 5 s).
+local talentsLus, luA = nil, -10
+function Equipement.talentIntel()
+    local now = GetTime and GetTime() or 0
+    if now - luA > 5 then
+        talentsLus, luA = ns.Jeu.talents and ns.Jeu.talents() or nil, now
+    end
+    for id in pairs(Equipement.TALENTS_INTEL) do
+        local t = talentsLus and talentsLus[id]
+        if t and t.rang > 0 then return id, t.rang, math.max(t.max or t.rang, 1) end
+    end
+end
+
+local function intelTalent(p)
+    if not p then return p end
+    local id, rang, max = Equipement.talentIntel()
+    if id then return Equipement.ajusterIntel(p, rang / max) end
+    return p
+end
+
+-- Poids du personnage (classe, arbre principal, niveau, talent à Intelligence).
 function Equipement.poidsJoueur()
     local jeu = ns.Jeu
-    return Equipement.poids(jeu.joueur().classe, (Equipement.arbreJoueur()), jeu.niveau())
+    return intelTalent(Equipement.poids(jeu.joueur().classe, (Equipement.arbreJoueur()), jeu.niveau()))
 end
 
 -- Arbre du joueur et sa source : choix manuel (réglage equipArbre 1 à 3),

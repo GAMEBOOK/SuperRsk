@@ -18,7 +18,7 @@ Reglages.DEFAUTS = {
     xpCouleurXP = false, xpCouleurQuetes = false, xpCouleurEnCours = false, xpCouleurRepos = false,
     xpNiveauMax = false, xpResetReload = false, xpMasquerBlizzard = true,
     butinRapide = true, butinAuto = true, butinConfirmerLie = false,
-    butinSonPlein = false, butinSonPeche = true, butinListe = false, butinPoubelle = true,
+    butinSonPlein = false, butinSonPeche = true, butinListe = false, butinPoubelle = true, butinDuree = 5, butinSens = "bas",
     rangsAuto = true, rangsMessage = true,
     tirActif = true, tirAffichage = "combat", tirBarre = "superguide", tirLargeur = 220, tirArmement = "auto", tirLatence = true, tirAvance = 0,
     tirCouleur = false, tirOpacite = 0.35, tirPulsation = true,
@@ -111,6 +111,8 @@ Reglages.MODULES = {
         } },
       } },
     { nom = "autoLoot", titre = "Auto Loot", interrupteur = "butinRapide", deplacer = true,
+      apercu = function(oui) if ns.ListeButin and ns.ListeButin.apercu then ns.ListeButin.apercu(oui) end end,
+      vitrine = function() if ns.ListeButin and ns.ListeButin.vitrine then return ns.ListeButin.vitrine() end end,
       desc = L["Ramasse tout le butin d'un coup, sans attendre la fenêtre du jeu. La fenêtre ne s'ouvre que s'il reste quelque chose : objet pour le groupe, sacs pleins…"],
       categories = {
         { titre = L["Ramassage"], options = {
@@ -128,6 +130,9 @@ Reglages.MODULES = {
         { titre = L["Affichage"], options = {
             { cle = "butinListe", type = "case", libelle = L["Afficher le butin ramassé"],
               info = L["Une liste animée de ce que tu ramasses. Bouton « Déplacer » pour la placer."] },
+            { cle = "butinDuree", type = "curseur", min = 2, max = 15, pas = 1, libelle = L["Durée d'affichage (secondes)"] },
+            { cle = "butinSens", type = "choix", valeurs = { "bas", "haut" }, noms = { L["Vers le bas"], L["Vers le haut"] },
+              libelle = L["Sens de la liste"], info = L["Les nouvelles lignes s'ajoutent sous l'ancre (vers le bas) ou au-dessus (vers le haut, si la liste est en bas de l'écran)."] },
         } },
       } },
     { nom = "poubelle", titre = L["Poubelle"], interrupteur = "butinPoubelle", deplacer = true,

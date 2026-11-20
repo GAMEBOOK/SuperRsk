@@ -280,6 +280,18 @@ end
 
 function Deplacement.ouvert() return actif end
 
+-- Élément -> réglage qui l'allume : un module coupé n'a pas de poignée (un
+-- cadre vide à placer pour une option coupée ne fait que dérouter).
+Deplacement.ALLUME = {
+    barreXP = "barreXP", butin = "butinListe", swap = "swapGroupeActif", poubelle = "butinPoubelle",
+    proposition = "proposerEquipement", barreTir = "tirActif", usure = "usureActif", vh = "vhActif",
+}
+
+function Deplacement.visible(cle)
+    local r = Deplacement.ALLUME[cle]
+    return not r or ns.Reglages.get(r) ~= false
+end
+
 function Deplacement.ouvrir()
     if actif then return end
     if InCombatLockdown and InCombatLockdown() then
@@ -296,7 +308,7 @@ function Deplacement.ouvrir()
         h.inscrit = i
         h.texte:SetText(i.nom)
         suivre(h)
-        h:Show()
+        h:SetShown(Deplacement.visible(i.cle))
     end
     for _, c in ipairs(fond.outils.cases) do c.maj() end
     majGrille()

@@ -74,33 +74,6 @@ end
 -- Les scènes
 ---------------------------------------------------------------------------
 
--- Auto Loot : le butin arrive ligne par ligne dans la liste.
-Apercus.definir("autoLoot", 4, function(f)
-    f.sac = icone(f, ICONES .. "INV_Misc_Bag_10", 40)
-    f.sac:SetPoint("LEFT", 20, 0)
-    f.lignes = {}
-    local butin = { { "INV_Misc_LeatherScrap_03", L["+1 Cuir léger"], "texte" },
-                    { "INV_Fabric_Linen_01", L["+2 Étoffe de lin"], "texte" },
-                    { "INV_Misc_Coin_02", "+45 pc", "orange" } }
-    for i, b in ipairs(butin) do
-        local l = CreateFrame("Frame", nil, f)
-        l:SetSize(200, 20)
-        local ic = icone(l, ICONES .. b[1], 18)
-        ic:SetPoint("LEFT")
-        texte(l, "petit", b[3], b[2]):SetPoint("LEFT", ic, "RIGHT", 6, 0)
-        l.y = 26 - (i - 1) * 24
-        f.lignes[i] = l
-    end
-end, function(f, t)
-    for i, l in ipairs(f.lignes) do
-        local a = vie(t, 0.4 + i * 0.45, 3.3)
-        l:SetAlpha(a)
-        l:ClearAllPoints()
-        l:SetPoint("LEFT", f, "LEFT", 80 + (1 - entre(t, 0.4 + i * 0.45, 0.7 + i * 0.45)) * -14, l.y)
-    end
-    f.sac:SetAlpha(0.6 + 0.4 * math.abs(math.sin(t * 2)))
-end)
-
 -- Marchand : réparation, puis vente des gris.
 Apercus.definir("marchand", 4.5, function(f)
     local jeu = ns.Jeu

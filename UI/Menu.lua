@@ -830,6 +830,8 @@ local function creer()
     fixe.carte = C.carte(fixe)
     fixe.carte:SetPoint("TOPLEFT", 0, -18)
     fixe.carte:SetSize(W, VITRINE)
+    -- Rien ne déborde de la bannière sur les réglages.
+    if fixe.carte.SetClipsChildren then fixe.carte:SetClipsChildren(true) end
     fixe.lueur = {}
     for i, pt in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
                           { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do

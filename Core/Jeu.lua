@@ -565,6 +565,31 @@ function Jeu.releveAuras(unite)
     return l
 end
 
+-- Talents pris (système récent, C_ClassTalents + C_Traits, présent sur
+-- Forever) : [identifiant de sort] = { rang, max }. nil si illisible.
+function Jeu.talents()
+    local CT, T = C_ClassTalents, C_Traits
+    if not (CT and CT.GetActiveConfigID and T and T.GetConfigInfo and T.GetTreeNodes) then return nil end
+    local ok, pris = pcall(function()
+        local c = CT.GetActiveConfigID()
+        local info = c and T.GetConfigInfo(c)
+        if not (info and info.treeIDs) then return nil end
+        local t = {}
+        for _, arbre in ipairs(info.treeIDs) do
+            for _, id in ipairs(T.GetTreeNodes(arbre) or {}) do
+                local n = T.GetNodeInfo(c, id)
+                if n and (n.currentRank or 0) > 0 and n.activeEntry then
+                    local e = T.GetEntryInfo(c, n.activeEntry.entryID)
+                    local d = e and e.definitionID and T.GetDefinitionInfo(e.definitionID)
+                    if d and d.spellID then t[d.spellID] = { rang = n.currentRank, max = n.maxRanks or n.currentRank } end
+                end
+            end
+        end
+        return t
+    end)
+    return ok and pris or nil
+end
+
 -- /sg spe : ce que le jeu rend (spécialisation, onglets de talents bruts),
 -- pour comprendre un arbre mal choisi sans /run.
 function Jeu.releveTalents()

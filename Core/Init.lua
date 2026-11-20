@@ -118,6 +118,7 @@ local function demarrer()
     lancer(ns.Butin.creer)
     lancer(ns.ListeButin.creer)
     ns.Reglages.ecouter(ns.Butin.appliquer)
+    ns.Reglages.ecouter(ns.ListeButin.appliquer)
 
     lancer(ns.Rangs.creer)
     ns.Reglages.ecouter(ns.Rangs.appliquer)
