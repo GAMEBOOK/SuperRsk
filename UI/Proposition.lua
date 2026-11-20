@@ -137,6 +137,9 @@ function Proposition.texteInfobulle(p)
     if math.abs(p.gain) < 0.0005 then return "|cff" .. T.hex.texteDoux .. "= " .. pct .. "|r" end
     if p.gain > 0 then
         local vide = p.remplace and "" or (" · " .. L["emplacement vide"])
+        if p.niveau then
+            return "|cff" .. T.hex.orange .. "+" .. pct .. " · " .. L["au niveau %d"]:format(p.niveau) .. "|r"
+        end
         return "|cff" .. T.hex.vert .. "+" .. pct .. vide .. "|r"
     end
     return "|cff" .. T.hex.rouge .. "-" .. pct .. "|r"

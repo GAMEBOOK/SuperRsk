@@ -230,6 +230,32 @@ end, function(f, t)
     f.barre:SetColorTexture(r, g, 0.35)
 end)
 
+-- Ménage des objets de quête : l'objet qui ne sert plus disparaît.
+Apercus.definir("menage", 3.6, function(f)
+    f.objets = {}
+    local chemins = { "INV_Misc_Bone_08", "INV_Misc_Note_01", "INV_Misc_MonsterClaw_04" }
+    for i, c in ipairs(chemins) do
+        local o = icone(f, ICONES .. c, 34)
+        o:SetPoint("CENTER", (i - 2) * 50, 4)
+        f.objets[i] = o
+    end
+    f.croix = f:CreateTexture(nil, "OVERLAY")
+    f.croix:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+    f.croix:SetSize(22, 22)
+    f.croix:SetPoint("BOTTOMRIGHT", f.objets[2], "BOTTOMRIGHT", 6, -6)
+    f.mot = texte(f, "petit", "vert", L["quête terminée"])
+    f.mot:SetPoint("TOP", f.objets[2], "BOTTOM", 0, -8)
+end, function(f, t)
+    local part = entre(t, 1.6, 2.2)
+    f.objets[2]:SetAlpha(1 - part)
+    f.croix:SetAlpha(vie(t, 0.5, 1.6))
+    f.mot:SetAlpha(vie(t, 0.5, 1.6))
+    f.objets[1]:ClearAllPoints()
+    f.objets[1]:SetPoint("CENTER", -50 + 25 * entre(t, 2.2, 2.8), 4)
+    f.objets[3]:ClearAllPoints()
+    f.objets[3]:SetPoint("CENTER", 50 - 25 * entre(t, 2.2, 2.8), 4)
+end)
+
 -- Météo et brouillard : la pluie tombe, puis s'arrête.
 Apercus.definir("meteo", 4, function(f)
     f.gouttes = {}

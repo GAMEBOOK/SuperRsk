@@ -34,7 +34,7 @@ local function demanderVerif()
         ns.Equipement.verifier()
     end)
 end
-local CLES_EQUIPEMENT = { proposerEquipement = true, equipBoE = true, choisirRecompense = true }
+local CLES_EQUIPEMENT = { proposerEquipement = true, equipBoE = true, choisirRecompense = true, equipFleches = true }
 
 -- Barre d'XP : un redessin par image au plus.
 local BARRE_XP = {}
@@ -103,6 +103,7 @@ local function demarrer()
 
     lancer(ns.Proposition.creer)
     lancer(ns.Proposition.brancherInfobulle)
+    lancer(ns.FlechesSacs.creer)
     ns.Equipement.surProposition = ns.Proposition.montrer
     -- Tous les déclencheurs de la vérification, dont l'objet ramassé (sacs).
     for e in pairs(VERIFIER) do inscrire(e) end
@@ -149,6 +150,10 @@ local function demarrer()
 
     for e in pairs(ns.Marchand.evenements) do inscrire(e) end
 
+    lancer(ns.Peche.creer)
+    lancer(ns.Menage.creer)
+    ns.Reglages.ecouter(ns.Peche.appliquerInterface)
+
     lancer(ns.Usure.creer)
     lancer(ns.Poubelle.creer)
     for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
@@ -166,6 +171,8 @@ for _, e in ipairs(ns.Usure.EVENEMENTS) do USURE[e] = true end
 
 evenements:SetScript("OnEvent", function(_, e, ...)
     if VERIFIER[e] then demanderVerif() end
+    -- Le niveau n'est pas toujours à jour pendant l'événement : on revérifie.
+    if e == "PLAYER_LEVEL_UP" then C_Timer.After(1, demanderVerif) end
     if USURE[e] then ns.Usure.verifier() end
     if ns.Marchand.evenements[e] then ns.Marchand.evenements[e](...); return end
     if BARRE_XP[e] and ns.BarreXP.maj then
@@ -218,7 +225,10 @@ evenements:SetScript("OnEvent", function(_, e, ...)
     elseif e == "TAXIMAP_OPENED" then
         ns.Vols.surCarteVol()
     elseif e == "PLAYER_REGEN_DISABLED" then
-        -- Les cadres protégés ne bougent plus en combat : on quitte le mode Déplacement.
+        -- Pas de fenêtre de réglages en combat.
+        if ns.Menu and ns.Menu.ouvert() then ns.Menu.fermer() end
+        -- Les cadres protégés ne bougent plus en combat : on quitte le mode Déplacement
+        -- (après le menu : chaque cadre revient bien à sa place).
         if ns.Deplacement.ouvert() then ns.Deplacement.annuler() end
     elseif e == "PLAYER_REGEN_ENABLED" then
         ns.Graphismes.sortieCombat()
@@ -232,6 +242,7 @@ evenements:RegisterEvent("PLAYER_LOGIN")
 -- /sg (ou /sg menu) : le menu · /sg move : mode Déplacement
 -- /sg tir : armement mesuré du tir auto / de la baguette
 -- /sg spe : arbre retenu par Auto Equip et d'où il vient (diagnostic)
+-- /sg sacs : objets des sacs qu'Auto Equip marque d'une flèche
 -- /sg dr : effets néfastes de la cible lus par un addon (test d'un suivi des DR)
 ---------------------------------------------------------------------------
 
@@ -243,6 +254,22 @@ SlashCmdList.SUPERGUIDE = function(arg)
         ns.Menu.basculer()
     elseif arg == "spe" or arg == "spé" or arg == "spec" or arg == "arbre" then
         for _, ligne in ipairs(ns.Equipement.diagnostic()) do ns.Jeu.message(ligne) end
+    elseif arg == "sacs" or arg == "bags" then
+        local n = 0
+        for lien, e in pairs(ns.Equipement.etats) do
+            n = n + 1
+            ns.Jeu.message(("%s  +%.1f %%%s"):format(lien, e.gain * 100,
+                e.niveau and (" · " .. L["au niveau %d"]:format(e.niveau)) or ""))
+        end
+        if n == 0 then ns.Jeu.message(L["Aucune amélioration dans tes sacs."]) end
+    elseif arg == "peche" or arg == "pêche" or arg == "fish" then
+        for _, ligne in ipairs(ns.Peche.diagnostic()) do ns.Jeu.message(ligne) end
+    elseif arg == "menage" or arg == "ménage" or arg == "quetes" or arg == "quêtes" then
+        ns.Menage.basculer()
+    elseif arg == "menage ?" or arg == "ménage ?" then
+        for _, ligne in ipairs(ns.Menage.expliquer()) do ns.Jeu.message(ligne) end
+    elseif arg == "photo" then
+        ns.Photo.basculer()
     elseif arg == "dr" then
         for _, ligne in ipairs(ns.Jeu.releveAuras("target")) do ns.Jeu.message(ligne) end
     elseif arg == "move" then
@@ -250,7 +277,7 @@ SlashCmdList.SUPERGUIDE = function(arg)
     elseif arg == "tir" then
         if ns.Tir and ns.Tir.rapport then ns.Tir.rapport() end
     else
-        ns.Jeu.message(L["Commande inconnue : %s (/sg, /sg move, tir, spe, dr)."]:format(arg))
+        ns.Jeu.message(L["Commande inconnue : %s (/sg, /sg move, tir, spe, sacs, peche, menage, dr)."]:format(arg))
         ns.Menu.basculer()
     end
 end

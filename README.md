@@ -10,6 +10,8 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | Module | What it does |
 |---|---|
 | **Auto Equip** | Spots gear upgrades for your class and spec (armor type, weapon DPS, hit and crit ratings) and offers to equip them. Shows the upgrade % in item tooltips. Picks the best quest reward. |
+| **Auto Fishing** | One key casts and hooks. Takes your best pole and fishing gear out of your bags, applies lures, gives your weapons back when attacked. A card counts catches, value and time, with a Put my gear back on button. |
+| **Quest Item Cleanup** | `/sg menage` lists the quest items you no longer need (certain with Questie) and throws them away in one click. |
 | **XP Bar** | A clean, movable XP bar with the XP of your finished and ongoing quests, rested XP, XP per hour. |
 | **Auto Loot** | Instant fast loot, loot list, sound when bags are full. |
 | **Junk** | Bags full while looting: offers to throw away the grey item worth the least, with its vendor and auction house price. Never without your click. |

@@ -294,12 +294,25 @@ local function rouge(ligne)
     return r and r > 0.95 and g < 0.2 and b < 0.2
 end
 
+-- « Niveau %d requis » : seule ligne rouge qui n'empêche pas de comparer
+-- (Equipement regarde le niveau à part, pour les objets à garder).
+local motifNiveau
+local function ligneNiveau(ligne)
+    if not motifNiveau then
+        local f = type(ITEM_MIN_LEVEL) == "string" and ITEM_MIN_LEVEL or "Requires Level %d"
+        motifNiveau = "^" .. f:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1"):gsub("%%d", "%%d+") .. "$"
+    end
+    local t = ligne:GetText()
+    return type(t) == "string" and t:match(motifNiveau) ~= nil
+end
+
 local function portable(remplir)
     local t = infoScan()
     remplir(t)
     for i = 1, t:NumLines() or 0 do
-        if rouge(_G["SuperGuideScanTextLeft" .. i]) or rouge(_G["SuperGuideScanTextRight" .. i]) then
-            return false
+        for _, cote in ipairs({ "Left", "Right" }) do
+            local l = _G["SuperGuideScanText" .. cote .. i]
+            if rouge(l) and not ligneNiveau(l) then return false end
         end
     end
     return true
@@ -437,6 +450,342 @@ function Jeu.texteArgent(cuivre)
     return ("%d po %d pa %d pc"):format(math.floor(cuivre / 10000), math.floor(cuivre / 100) % 100, cuivre % 100)
 end
 
+-- Pêche ---------------------------------------------------------------------
+
+local function estCanne(id)
+    if not (id and C_Item and C_Item.GetItemInfoInstant) then return false end
+    local _, _, _, _, _, classe, sousClasse = C_Item.GetItemInfoInstant(id)
+    return classe == 2 and sousClasse == 20
+end
+
+-- Nom lisible d'une touche (« Espace », « Maj-F ») dans la langue du jeu.
+function Jeu.nomTouche(t)
+    if GetBindingText and t then return GetBindingText(t) end
+    return t
+end
+
+-- Une canne à pêche en main droite ?
+function Jeu.cannePortee()
+    return GetInventoryItemID ~= nil and estCanne(GetInventoryItemID("player", 16))
+end
+
+-- Compétence de pêche : rang, bonus (équipement et appât), maximum ; nil si illisible.
+function Jeu.competencePeche(nom)
+    for i = 1, (GetNumSkillLines and GetSkillLineInfo and nom) and GetNumSkillLines() or 0 do
+        local ok, n, entete, _, rang, _, bonus, max = pcall(GetSkillLineInfo, i)
+        if ok and not entete and n == nom and rang then return rang, bonus or 0, max end
+    end
+    if GetProfessions and GetProfessionInfo then
+        local _, _, _, peche = GetProfessions()
+        if peche then
+            local ok, _, _, rang, max, _, _, _, bonus = pcall(GetProfessionInfo, peche)
+            if ok and rang then return rang, bonus or 0, max end
+        end
+    end
+end
+
+-- Bonus de pêche lu dans l'info-bulle de scan déjà remplie (« +5 Pêche »,
+-- « Pêche augmentée de 5 »…), nil sans bonus. Ligne 1 : le nom de l'objet
+-- (« Canne à pêche… ») ; « Requiert Pêche (100) » n'est pas un bonus :
+-- seulement « +N » ou « de N ».
+local function bonusLu(t, motif)
+    local bonus
+    for i = 2, t:NumLines() or 0 do
+        local l = _G["SuperGuideScanTextLeft" .. i]
+        local txt = l and l:GetText()
+        if type(txt) == "string" and txt:lower():find(motif, 1, true) then
+            bonus = tonumber(txt:match("%+%s*(%d+)") or txt:match("%f[%a]de%s+(%d+)")
+                or txt:match("%f[%a]by%s+(%d+)")) or bonus
+        end
+    end
+    return bonus
+end
+
+-- Emplacement où va un objet, d'après son type (INVTYPE_…).
+local EMPLACEMENTS = {
+    INVTYPE_HEAD = 1, INVTYPE_NECK = 2, INVTYPE_SHOULDER = 3, INVTYPE_CHEST = 5, INVTYPE_ROBE = 5,
+    INVTYPE_WAIST = 6, INVTYPE_LEGS = 7, INVTYPE_FEET = 8, INVTYPE_WRIST = 9, INVTYPE_HAND = 10,
+    INVTYPE_FINGER = 11, INVTYPE_TRINKET = 13, INVTYPE_CLOAK = 15,
+}
+
+-- Pièces portées qui aident à pêcher : la canne, et celles qui donnent un
+-- bonus de pêche. { { case, lien, icone, bonus } }.
+function Jeu.equipementPeche(nom)
+    local liste = {}
+    if not (GetInventoryItemLink and nom) then return liste end
+    local motif = nom:lower()
+    for case = 1, 19 do
+        local lien = GetInventoryItemLink("player", case)
+        if lien then
+            local t = infoScan()
+            t:SetInventoryItem("player", case)
+            local bonus = bonusLu(t, motif)
+            if bonus or (case == 16 and estCanne(GetInventoryItemID("player", 16))) then
+                liste[#liste + 1] = { case = case, lien = lien, icone = GetInventoryItemTexture("player", case), bonus = bonus }
+            end
+        end
+    end
+    return liste
+end
+
+-- Objets des sacs qui aident à pêcher et que tu peux porter : cannes et
+-- pièces à bonus de pêche. { { lien, case (emplacement), canne, bonus, niveau } }.
+function Jeu.sacsPeche(nom)
+    local liste = {}
+    if not (C_Container and C_Container.GetContainerNumSlots and nom) then return liste end
+    local motif = nom:lower()
+    for sac = 0, 4 do
+        for c = 1, C_Container.GetContainerNumSlots(sac) or 0 do
+            local lien = C_Container.GetContainerItemLink(sac, c)
+            local id = lien and C_Item.GetItemInfoInstant(lien)
+            if id then
+                local _, _, _, loc = C_Item.GetItemInfoInstant(lien)
+                local canne = estCanne(id)
+                local emplacement = canne and 16 or EMPLACEMENTS[loc]
+                if emplacement and portable(function(t) t:SetBagItem(sac, c) end) then
+                    local bonus = bonusLu(scanneur, motif)
+                    local _, _, _, niveau, niveauMin = C_Item.GetItemInfo(lien)
+                    if (canne or bonus) and (niveauMin or 0) <= (UnitLevel("player") or 0) then
+                        niveau = niveau or 0
+                        liste[#liste + 1] = { lien = lien, case = emplacement, canne = canne, bonus = bonus, niveau = niveau }
+                    end
+                end
+            end
+        end
+    end
+    return liste
+end
+
+-- Équipe un objet par son lien à cet emplacement. Les armes passent même en
+-- combat (le jeu le permet) ; le reste attend la fin du combat.
+function Jeu.mettre(lien, case)
+    local arme = case == 16 or case == 17 or case == 18
+    if InCombatLockdown() and not arme then return false end
+    local f = (C_Item and C_Item.EquipItemByName) or EquipItemByName
+    if not (f and lien) then return false end
+    f(lien, case)
+    return true
+end
+
+-- Appât posé sur la canne : secondes restantes, nil sans appât.
+function Jeu.appatActif()
+    if not GetWeaponEnchantInfo then return nil end
+    local a, fin = GetWeaponEnchantInfo()
+    if a and fin then return fin / 1000 end
+end
+
+-- Appâts des sacs parmi ces objets : { { id, nombre, nom, icone } }.
+function Jeu.appatsSacs(ids)
+    local liste = {}
+    for _, id in ipairs(ids) do
+        local n = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(id) or 0
+        if n > 0 then
+            local nom, _, _, _, _, _, _, _, _, icone = C_Item.GetItemInfo(id)
+            -- Compétence de pêche trop basse pour cet appât : pas utilisable.
+            local utilisable = true
+            local f = (C_Item and C_Item.IsUsableItem) or IsUsableItem
+            if f then utilisable = f(id) and true or false end
+            liste[#liste + 1] = { id = id, nombre = n, nom = nom or ("#" .. id), icone = icone, utilisable = utilisable }
+        end
+    end
+    return liste
+end
+
+-- Prix d'un objet : hôtel des ventes (Auctionator) sinon marchand, à l'unité.
+-- Rend prix, "hv" | "marchand" | nil.
+function Jeu.prixObjet(lien)
+    local hv = Jeu.prixHV(lien)
+    if hv then return hv, "hv" end
+    local vente = C_Item and C_Item.GetItemInfo and select(11, C_Item.GetItemInfo(lien))
+    if vente and vente > 0 then return vente, "marchand" end
+    return 0, nil
+end
+
+-- Ménage des objets de quête -----------------------------------------------
+
+-- Objets de quête des sacs (classe « Quête », ou objet qui commence une
+-- quête) : { { sac, case, lien, id, nom, icone, nombre, queteDebut } }.
+function Jeu.objetsQuete()
+    local liste = {}
+    if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
+    for sac = 0, 4 do
+        for c = 1, C_Container.GetContainerNumSlots(sac) or 0 do
+            local info = C_Container.GetContainerItemInfo(sac, c)
+            local lien = info and info.hyperlink
+            if lien then
+                local id, _, _, _, icone, classe = C_Item.GetItemInfoInstant(lien)
+                local q = C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(sac, c)
+                local debut = q and q.questID
+                if id and (classe == 12 or debut) then
+                    liste[#liste + 1] = { sac = sac, case = c, lien = lien, id = id,
+                        nom = lien:match("%[(.-)%]"), icone = info.iconFileID or icone,
+                        nombre = info.stackCount or 1, queteDebut = debut }
+                end
+            end
+        end
+    end
+    return liste
+end
+
+local function questieDB()
+    local QL = _G.QuestieLoader
+    if not (QL and QL.ImportModule) then return nil end
+    local ok, db = pcall(QL.ImportModule, QL, "QuestieDB")
+    if ok and db and type(db.QueryQuestSingle) == "function" and type(db.QueryItemSingle) == "function" then return db end
+end
+
+-- Objets dont une quête a besoin selon Questie : objectifs, objet donné au
+-- départ (un détecteur prêté, par exemple), objets requis, objets qui la
+-- commencent. ajouter(itemID) pour chacun.
+local function objetsDeQuete(db, q, ajouter)
+    local function champ(nom)
+        local ok, v = pcall(db.QueryQuestSingle, q, nom)
+        if ok then return v end
+    end
+    local obj = champ("objectives")
+    if type(obj) == "table" and type(obj[3]) == "table" then
+        for _, it in pairs(obj[3]) do ajouter(type(it) == "table" and it[1] or it) end
+    end
+    ajouter(champ("sourceItemId"))
+    local requis = champ("requiredSourceItems")
+    if type(requis) == "table" then for _, it in pairs(requis) do ajouter(it) end end
+    local par = champ("startedBy")
+    if type(par) == "table" and type(par[3]) == "table" then
+        for _, it in pairs(par[3]) do ajouter(it) end
+    end
+end
+
+-- Objets des quêtes de ton journal selon Questie : { [itemID] = questID }.
+function Jeu.objetsQuetesEnCours(journal)
+    local db, objets = questieDB(), {}
+    if not db then return objets end
+    for q in pairs(journal or {}) do
+        objetsDeQuete(db, q, function(it) if type(it) == "number" then objets[it] = q end end)
+    end
+    return objets
+end
+
+-- Index objet -> quêtes sur toute la base de Questie, construit par petits
+-- morceaux hors combat (pas d'à-coup) : { [itemID] = { questID, … } }.
+local index, indexPret, indexEtat, indexObjets = {}, false, "pas lancé", 0
+local function construireIndex()
+    local db = questieDB()
+    if not (db and type(db.QuestPointers) == "table") then
+        indexEtat = "liste des quêtes de Questie introuvable"
+        return
+    end
+    local ids = {}
+    for q in pairs(db.QuestPointers) do ids[#ids + 1] = q end
+    indexEtat = ("en cours (%d quêtes)"):format(#ids)
+    local n = 1
+    local ticker
+    ticker = C_Timer.NewTicker(0.05, function()
+        if InCombatLockdown() then return end
+        for _ = 1, 150 do
+            local q = ids[n]
+            if not q then
+                indexPret = true
+                indexEtat = ("prêt (%d quêtes, %d objets)"):format(#ids, indexObjets)
+                ticker:Cancel()
+                return
+            end
+            objetsDeQuete(db, q, function(it)
+                if type(it) == "number" then
+                    if not index[it] then indexObjets = indexObjets + 1 end
+                    local l = index[it] or {}
+                    index[it] = l
+                    l[#l + 1] = q
+                end
+            end)
+            n = n + 1
+        end
+    end)
+end
+function Jeu.lancerIndexQuestie()
+    if questieDB() then construireIndex() end
+end
+function Jeu.indexQuestiePret() return indexPret end
+function Jeu.etatIndexQuestie() return questieDB() and indexEtat or "Questie absent" end
+
+-- Quêtes liées à un objet selon Questie (index complet, plus ses champs
+-- « quêtes liées » et « commence la quête ») ; nil sans Questie, sans
+-- donnée, ou index pas encore prêt et rien d'autre.
+function Jeu.quetesObjet(id)
+    local db = questieDB()
+    if not (db and id) then return nil end
+    local quetes, vues = {}, {}
+    local function ajouter(q)
+        if type(q) == "number" and q > 0 and not vues[q] then vues[q] = true; quetes[#quetes + 1] = q end
+    end
+    for _, q in ipairs(index[id] or {}) do ajouter(q) end
+    local okL, liees = pcall(db.QueryItemSingle, id, "relatedQuests")
+    if okL and type(liees) == "table" then for _, q in pairs(liees) do ajouter(q) end end
+    local okD, debut = pcall(db.QueryItemSingle, id, "startQuest")
+    if okD then ajouter(debut) end
+    return #quetes > 0 and quetes or nil
+end
+
+function Jeu.queteFaite(q)
+    return C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(q) or false
+end
+
+function Jeu.queteEnCours(q)
+    return C_QuestLog and C_QuestLog.IsOnQuest and C_QuestLog.IsOnQuest(q) or false
+end
+
+-- Tout le texte des quêtes du journal (titres, objectifs, descriptions) et
+-- leurs identifiants { [questID] = true } : un objet qu'une quête en cours
+-- nomme est gardé. Le texte est brut ; Menage le normalise.
+function Jeu.texteQuetesEnCours()
+    local morceaux, enCours = {}, {}
+    local function ajouter(t) if type(t) == "string" and t ~= "" then morceaux[#morceaux + 1] = t end end
+    local entrees = {}
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        for i = 1, C_QuestLog.GetNumQuestLogEntries() or 0 do
+            local info = C_QuestLog.GetInfo(i)
+            if info and not info.isHeader then
+                ajouter(info.title)
+                entrees[#entrees + 1] = { i, info.questID }
+            end
+        end
+    elseif GetNumQuestLogEntries and GetQuestLogTitle then
+        for i = 1, GetNumQuestLogEntries() or 0 do
+            local titre, _, _, enTete, _, _, _, id = GetQuestLogTitle(i)
+            if not enTete then
+                ajouter(titre)
+                entrees[#entrees + 1] = { i, id }
+            end
+        end
+    end
+    local avant = GetQuestLogSelection and GetQuestLogSelection()
+    for _, e in ipairs(entrees) do
+        local index, id = e[1], e[2]
+        if id then enCours[id] = true end
+        -- Objectifs, interface moderne…
+        local objectifs = id and C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id)
+        for _, o in ipairs(objectifs or {}) do ajouter(o.text) end
+        -- … et classique (« Détecteur Gahz'ridian : 1/1 »).
+        if GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+            local okN, n = pcall(GetNumQuestLeaderBoards, index)
+            for k = 1, okN and n or 0 do
+                local okT, texte = pcall(GetQuestLogLeaderBoard, k, index)
+                if okT then ajouter(texte) end
+            end
+        end
+        -- Description et résumé de l'objectif (sélection rendue après).
+        if SelectQuestLogEntry and GetQuestLogQuestText then
+            pcall(SelectQuestLogEntry, index)
+            local ok, description, objectif = pcall(GetQuestLogQuestText)
+            if ok then ajouter(description); ajouter(objectif) end
+        end
+    end
+    if avant and SelectQuestLogEntry then pcall(SelectQuestLogEntry, avant) end
+    return table.concat(morceaux, "\n"), enCours
+end
+
+-- Questie là et sa base lisible (pas seulement installé).
+function Jeu.questieCharge() return questieDB() ~= nil end
+
 -- Usure ---------------------------------------------------------------------
 
 -- Pièces portées qui s'usent : { { case, actuel, max } }.
@@ -466,6 +815,14 @@ function Jeu.objetPorte(id)
     local lien = GetInventoryItemLink("player", id)
     if not lien then return nil end
     local o = Jeu.objet(lien, function(t) t:SetInventoryItem("player", id) end)
+    if not o then return false end
+    o.lie = true
+    return o
+end
+
+-- Objet décrit d'après son seul lien (pièce retenue pendant la pêche).
+function Jeu.objetLien(lien)
+    local o = Jeu.objet(lien, function(t) t:SetHyperlink(lien) end)
     if not o then return false end
     o.lie = true
     return o

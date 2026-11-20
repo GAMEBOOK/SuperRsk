@@ -50,7 +50,12 @@ function Poubelle.surPlein()
     local t = GetTime and GetTime() or 0
     if t - dernierRien >= Poubelle.RAPPEL then
         dernierRien = t
-        ns.Jeu.message(L["Sacs pleins, et aucun objet gris à jeter."])
+        local n = ns.Menage and R("menageActif") ~= false and ns.Menage.nbSurs() or 0
+        if n > 0 then
+            ns.Jeu.message(L["Sacs pleins, aucun gris à jeter, mais %d objets de quête ne servent plus : /sg menage."]:format(n))
+        else
+            ns.Jeu.message(L["Sacs pleins, et aucun objet gris à jeter."])
+        end
     end
     return nil
 end

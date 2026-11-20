@@ -406,6 +406,14 @@ function Equipement.arbreJoueur()
     return ns.Jeu.arbreTalents()
 end
 
+-- Ce qui est porté, vu par Auto Equip. En pêche, c'est l'équipement de
+-- combat retenu (l'arme d'avant la canne), pas la canne ni le chapeau.
+local function porteur()
+    local p = ns.Peche
+    if p and p.enPeche and p.enPeche() and p.porteNormal then return p.porteNormal(ns.Jeu.objetPorte) end
+    return ns.Jeu.objetPorte
+end
+
 -- Puissance du personnage : ses cinq stats lues dans le jeu (les dernières
 -- lues quand le jeu les cache, en combat), plus son équipement.
 local derniereBase
@@ -413,7 +421,7 @@ function Equipement.puissanceJoueur(poids)
     local jeu = ns.Jeu
     local base = jeu.statsBase and jeu.statsBase()
     if base then derniereBase = base end
-    return Equipement.puissance(jeu.objetPorte, poids, derniereBase)
+    return Equipement.puissance(porteur(), poids, derniereBase)
 end
 
 -- Infobulle d'un objet : son écart avec ce qui est porté (Auto Equip actif,
@@ -427,13 +435,57 @@ function Equipement.infobulle(lien)
     if not Equipement.armureOk(objet, ns.Jeu.joueur().classe, ns.Jeu.niveau()) then return nil end
     local ids = Equipement.EMPLACEMENTS[objet.equipLoc]
     if not ids then return nil end
-    local porte = ns.Jeu.objetPorte
+    local porte = porteur()
     for _, i in ipairs(ids) do
         local o = porte(i)
         if o and o.lien == lien then return nil end
     end
     local poids = Equipement.poidsJoueur()
-    return (Equipement.ecart(objet, porte, poids, Equipement.puissanceJoueur(poids)))
+    local p = Equipement.ecart(objet, porte, poids, Equipement.puissanceJoueur(poids))
+    local niveau = ns.Jeu.niveau()
+    if p and (objet.niveauMin or 0) > (niveau or 0) then p.niveau = objet.niveauMin end
+    return p
+end
+
+---------------------------------------------------------------------------
+-- Flèches des sacs : état de chaque objet des sacs, par lien. gain : écart
+-- avec ce qui est porté ; niveau : seulement plus tard (niveau requis).
+-- Tous les BoE, même refusés : la flèche informe, elle ne demande rien.
+---------------------------------------------------------------------------
+
+Equipement.etats = {}
+function Equipement.surEtats() end   -- crochet de l'interface (sacs à redessiner)
+
+function Equipement.etat(lien) return Equipement.etats[lien] end
+
+function Equipement.evaluerSacs(sacs, porte, poids, ctx)
+    local etats = {}
+    for _, o in ipairs(sacs) do
+        if o.stats and o.lien then
+            local futur = (o.niveauMin or 0) > (ctx.niveau or 0)
+            local c = { niveau = futur and o.niveauMin or ctx.niveau, boeMax = 7, classe = ctx.classe }
+            if Equipement.eligible(o, c) then
+                local prop = Equipement.comparer(o, porte, poids, ctx.puissance)
+                if prop then etats[o.lien] = { gain = prop.gain, niveau = futur and o.niveauMin or nil } end
+            end
+        end
+    end
+    return etats
+end
+
+local function memesEtats(a, b)
+    for k, v in pairs(a) do
+        local w = b[k]
+        if not w or w.niveau ~= v.niveau then return false end
+    end
+    for k in pairs(b) do if not a[k] then return false end end
+    return true
+end
+
+local function poserEtats(etats)
+    if memesEtats(etats, Equipement.etats) then return end
+    Equipement.etats = etats
+    Equipement.surEtats()
 end
 
 function Equipement.contexte()
@@ -446,6 +498,7 @@ function Equipement.verifier()
     if not reglage("proposerEquipement") then
         file = {}
         montrer(nil)
+        poserEtats({})
         return
     end
     if jeu.enCombat() then
@@ -454,8 +507,18 @@ function Equipement.verifier()
     end
     local poids, ctx = Equipement.poidsJoueur(), Equipement.contexte()
     ctx.puissance = Equipement.puissanceJoueur(poids)
+    local sacs = jeu.objetsSacs() or {}
+    poserEtats(reglage("equipFleches") and Equipement.evaluerSacs(sacs, porteur(), poids, ctx) or {})
+    -- En pêche (canne en main, tenue de pêche mise) : les flèches comparent
+    -- avec l'équipement de combat, mais pas de fenêtre (on ne va pas te
+    -- retirer la canne des mains). Elle revient quand l'équipement est remis.
+    if ns.Peche and ns.Peche.enPeche and ns.Peche.enPeche() then
+        file = {}
+        montrer(nil)
+        return
+    end
     while true do
-        file = Equipement.ameliorations(jeu.objetsSacs() or {}, jeu.objetPorte, poids, ctx)
+        file = Equipement.ameliorations(sacs, jeu.objetPorte, poids, ctx)
         local t = file[1]
         if not (t and tentes[t.objet.lien]) then break end
         refuses[t.objet.lien] = true

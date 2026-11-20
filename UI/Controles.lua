@@ -364,6 +364,110 @@ function Controles.texture(parent, o, largeur)
     return f
 end
 
+-- Touche liée à un réglage : libellé au-dessus, bouton dessous. Clic, puis
+-- appui sur la touche voulue (avec Maj, Ctrl, Alt si besoin), un bouton de
+-- souris (milieu, côtés) ou la molette. Échap annule ; clic droit : la
+-- touche par défaut.
+local MODIFICATEURS = { LSHIFT = true, RSHIFT = true, LCTRL = true, RCTRL = true, LALT = true, RALT = true,
+                        LMETA = true, RMETA = true }
+local SOURIS = { MiddleButton = "BUTTON3", Button4 = "BUTTON4", Button5 = "BUTTON5" }
+
+local function avecModificateurs(touche)
+    local p = ""
+    if IsAltKeyDown and IsAltKeyDown() then p = p .. "ALT-" end
+    if IsControlKeyDown and IsControlKeyDown() then p = p .. "CTRL-" end
+    if IsShiftKeyDown and IsShiftKeyDown() then p = p .. "SHIFT-" end
+    return p .. touche
+end
+
+function Controles.nomTouche(t)
+    if not t or t == "" then return L["aucune"] end
+    if GetBindingText then return GetBindingText(t) end
+    return t
+end
+
+function Controles.touche(parent, o, largeur)
+    local R = ns.Reglages
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(largeur, 48)
+    f.libelle = Controles.texte(f, "texte", "texte")
+    f.libelle:SetPoint("TOPLEFT")
+    f.libelle:SetText(o.libelle)
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(math.min(largeur, 180), 24)
+    b:SetPoint("BOTTOMLEFT")
+    b.fond, b.bord = T().fond(b, "flot", 1, "bordFort")
+    b.texte = Controles.texte(b, "texte", "accent")
+    b.texte:SetPoint("CENTER")
+    b.texte:SetJustifyH("CENTER")
+    f.remplace = Controles.texte(f, "petit", "texteDoux")
+    f.remplace:SetPoint("LEFT", b, "RIGHT", 10, 0)
+    f.remplace:SetWidth(math.max(40, largeur - 190))
+    f.remplace:SetWordWrap(false)
+    b:RegisterForClicks("AnyUp")
+    local attente = false
+
+    local function finir(touche)
+        attente = false
+        b:EnableKeyboard(false)
+        b:SetScript("OnKeyDown", nil)
+        b:SetScript("OnMouseWheel", nil)
+        b:EnableMouseWheel(false)
+        if touche then R.set(o.cle, touche) end
+        f.maj()
+    end
+
+    function f.maj()
+        local t = R.get(o.cle)
+        b.bord:SetVertexColor(T().rgb(attente and "accent" or "bordFort"))
+        if attente then
+            b.texte:SetText(L["Appuie sur une touche…"])
+            f.remplace:SetText(L["Échap : annuler"])
+            return
+        end
+        b.texte:SetText(Controles.nomTouche(t))
+        -- Ce que cette touche fait d'habitude (elle le refait sans canne).
+        local action = t and GetBindingAction and GetBindingAction(t)
+        if action and action ~= "" then
+            local nom = GetBindingText and GetBindingText(action, "BINDING_NAME_") or action
+            f.remplace:SetText(L["remplace « %s » le temps de pêcher"]:format(nom))
+        else
+            f.remplace:SetText("")
+        end
+    end
+
+    b:SetScript("OnClick", function(_, bouton)
+        if InCombatLockdown and InCombatLockdown() then return end
+        if attente then
+            if SOURIS[bouton] then finir(avecModificateurs(SOURIS[bouton])) end
+            return
+        end
+        if bouton == "RightButton" then
+            R.set(o.cle, R.DEFAUTS[o.cle])
+            f.maj()
+            return
+        end
+        if bouton ~= "LeftButton" then return end
+        attente = true
+        b:EnableKeyboard(true)
+        if b.SetPropagateKeyboardInput then b:SetPropagateKeyboardInput(false) end
+        b:SetScript("OnKeyDown", function(_, touche)
+            if MODIFICATEURS[touche] then return end
+            if touche == "ESCAPE" then finir(nil) return end
+            finir(avecModificateurs(touche))
+        end)
+        b:EnableMouseWheel(true)
+        b:SetScript("OnMouseWheel", function(_, delta)
+            finir(avecModificateurs(delta > 0 and "MOUSEWHEELUP" or "MOUSEWHEELDOWN"))
+        end)
+        f.maj()
+    end)
+    b:HookScript("OnHide", function() if attente then finir(nil) end end)
+    Controles.infobulle(b, o.libelle, o.info)
+    f.maj()
+    return f
+end
+
 -- Contrôle adapté au type de l'option.
 function Controles.pour(parent, o, largeur)
     if o.type == "case" then return Controles.case(parent, o, largeur) end
@@ -372,6 +476,7 @@ function Controles.pour(parent, o, largeur)
     if o.type == "texture" then return Controles.texture(parent, o, largeur) end
     if o.type == "couleur" then return Controles.couleur(parent, o, largeur) end
     if o.type == "texte" then return Controles.texteLibre(parent, o, largeur) end
+    if o.type == "touche" then return Controles.touche(parent, o, largeur) end
 end
 
 -- Champ de saisie : texte pâle tant qu'il est vide, icône à gauche si

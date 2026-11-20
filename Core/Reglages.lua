@@ -11,7 +11,7 @@ ns.Reglages = Reglages
 local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 Reglages.DEFAUTS = {
-    equipArbre = 0, proposerEquipement = true, equipBoE = 2, choisirRecompense = true,
+    equipArbre = 0, proposerEquipement = true, equipFleches = true, equipBoE = 2, choisirRecompense = true,
     minimapCache = false,
     barreXP = true, barreXPLargeur = 580, xpTexture = "d1", xpContour = "noir", xpTextes = 2, xpContourTexte = "fin",
     xpBarreQuetes = true, xpBarreEnCours = false, xpBarreRepos = true,
@@ -32,6 +32,8 @@ Reglages.DEFAUTS = {
     vhActif = true, vhGuilde = true, vhTop = 10, vhMonde = true,
     tsquidActif = false, tsquidCritSon = true, tsquidCanal = "Master",
     softInteract = true,
+    pecheActif = true, pecheTouche = "SPACE", pecheTenueTouche = "", pecheSortir = true, pecheAppat = true, pecheWidget = true,
+    menageActif = true,
     marchandActif = true, marchandVendre = true, marchandReparer = true, marchandGuilde = false, marchandMessage = true,
     usureActif = true, usureSeuil = 20, usureStyle = "icone", usureTaille = 1, usureSon = true, usureMessage = true,
     usureToujours = false, usureNom = false, usureFond = 0.92, usureLibelle = true, usureTexteLibelle = "",
@@ -60,6 +62,8 @@ Reglages.MODULES = {
       options = {
         { cle = "proposerEquipement", type = "case", libelle = L["Proposer les améliorations d'équipement"],
           info = L["Un objet meilleur que le tien (selon ta classe et ta spécialisation) arrive dans tes sacs : une fenêtre te propose de l'équiper."] },
+        { cle = "equipFleches", type = "case", libelle = L["Flèche sur les améliorations dans les sacs"],
+          info = L["Flèche verte sur les objets de tes sacs meilleurs que les tiens. Flèche dorée avec un niveau : meilleur, mais portable seulement à ce niveau (à garder). Sacs du jeu, Baganator et EllesmereUI Bags."] },
         { cle = "equipBoE", type = "choix", valeurs = { 0, 2, 3, 7 },
           noms = { L["Aucun"], L["Verts"], L["+ Bleus"], L["Tous"] },
           libelle = L["Objets « lié quand équipé »"],
@@ -289,6 +293,37 @@ Reglages.MODULES = {
         { cle = "vhTop", type = "choix", valeurs = { 5, 10, 20 }, noms = { "5", "10", "20" },
           libelle = L["Joueurs dans le classement"] },
     } },
+    { nom = "peche", titre = L["Pêche en un bouton"], interrupteur = "pecheActif", deplacer = true,
+      boutons = { { texte = L["Tenue de pêche"], action = function() if ns.Peche then ns.Peche.basculerTenue() end end },
+                  { texte = L["Nouvelle session"], action = function()
+                      if not ns.Peche then return end
+                      ns.Peche.remettreAZero()
+                      ns.Jeu.message(L["Pêche : nouvelle session."])
+                  end } },
+      apercu = function(oui) if ns.Peche and ns.Peche.apercu then ns.Peche.apercu(oui) end end,
+      vitrine = function() if ns.Peche and ns.Peche.vitrine then return ns.Peche.vitrine() end end,
+      desc = L["Une seule touche pour pêcher : un appui lance la ligne, un appui quand le bouchon plonge ferre le poisson. Par défaut Espace, canne en main seulement. Choisis ta propre touche ci-dessous : sans canne en main, elle sortira aussi ta canne et ta tenue de pêche des sacs. La touche n'est qu'empruntée, hors combat ; rien ne change dans tes raccourcis. Le widget compte ta session : prises, valeur à l'hôtel des ventes, équipement et appâts."],
+      options = {
+        { cle = "pecheActif", type = "case", libelle = L["Pêcher avec une seule touche"],
+          info = L["Seulement canne à pêche en main droite. En combat, la touche reprend tout de suite son rôle normal."] },
+        { cle = "pecheTouche", type = "touche", libelle = L["Touche de pêche"],
+          info = L["Clic, puis appuie sur la touche voulue : une touche du clavier (avec Maj, Ctrl ou Alt si tu veux), la molette ou un bouton de souris du milieu ou des côtés. Canne en main, elle lance et ferre à la place de son rôle habituel. Clic droit : Espace."] },
+        { cle = "pecheSortir", type = "case", libelle = L["Sans canne en main, la touche de pêche met la tenue de pêche"],
+          info = L["Un appui sort ta meilleure canne (et tes pièces de pêche) des sacs, l'appui suivant lance la ligne. Pas avec Espace : sans canne, il sert à sauter."] },
+        { cle = "pecheAppat", type = "case", libelle = L["Poser l'appât tout seul quand il n'y en a plus"],
+          info = L["Plus d'appât sur la canne : la touche de pêche pose d'abord le meilleur appât de tes sacs que tu peux utiliser, l'appui suivant lance la ligne."] },
+        { cle = "pecheTenueTouche", type = "touche", libelle = L["Touche de la tenue de pêche"],
+          info = L["Un appui sort de tes sacs ta meilleure canne et tes pièces à bonus de pêche (chapeau, bottes, gants…) ; un second appui remet ton équipement. Attaqué : tes armes reviennent tout de suite, le reste à la fin du combat. Aussi dans Raccourcis > SuperRsk. Clic droit : aucune touche."] },
+        { cle = "pecheWidget", type = "case", libelle = L["Afficher le widget de pêche"],
+          info = L["Canne en main : prises et valeur de la session. Survol : chaque poisson avec son prix, ta compétence, ton équipement de pêche et tes appâts. Glisse-le où tu veux."] },
+    } },
+    { nom = "menage", titre = L["Ménage des objets de quête"], interrupteur = "menageActif",
+      boutons = { { texte = L["Faire le ménage"], action = function() if ns.Menage then ns.Menage.ouvrir() end end } },
+      desc = L["Sur demande (/sg menage ou le bouton ci-dessus) : la liste des objets de quête de tes sacs qui ne servent plus, à jeter d'un clic. Rien n'est jeté sans ton clic. Installe Questie pour un tri plus précis : il reconnaît les objets prêtés par une quête et ceux dont toutes les quêtes sont terminées (cochés d'office). Sans lui, un objet qu'aucune quête de ton journal ne nomme est seulement proposé, pas coché."],
+      options = {
+        { cle = "menageActif", type = "case", libelle = L["Me prévenir quand un objet de quête ne sert plus"],
+          info = L["Quand tu rends une quête, un message nomme les objets devenus inutiles (sûrs seulement). Sacs pleins sans objet gris à jeter : la Poubelle propose aussi le ménage."] },
+    } },
     { nom = "softInteract", titre = L["Interaction rapide"], interrupteur = "softInteract",
       desc = L["Le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
       options = {
@@ -415,6 +450,12 @@ local function borner(o, v)
         if v == nil then return "" end
         v = tostring(v):gsub("^%s+", ""):gsub("%s+$", "")
         return v:sub(1, o.max or 24)
+    elseif o.type == "touche" then
+        -- « T », « SHIFT-F », « BUTTON4 », « MOUSEWHEELUP »…
+        if type(v) ~= "string" then return nil end
+        if v == "" then return "" end   -- aucune touche
+        v = v:upper()
+        return v:match("^[%w%-]+$") and #v <= 40 and v or nil
     elseif o.type == "texture" then
         return type(v) == "string" and v ~= "" and v or nil
     elseif o.type == "couleur" then

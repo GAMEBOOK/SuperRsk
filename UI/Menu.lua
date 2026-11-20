@@ -229,7 +229,7 @@ end
 local reglages = {}
 
 -- Carte titrée à partir de y ; renvoie le y suivant.
-local HAUTEURS = { case = 22, curseur = 38, choix = 48, texture = 48, couleur = 22, texte = 48 }
+local HAUTEURS = { case = 22, curseur = 38, choix = 48, texture = 48, couleur = 22, texte = 48, touche = 48 }
 local function carteOptions(p, y, titre, hauteurContenu, remplir)
     local t = intitule(p.cadre, titre:upper())
     t:SetPoint("TOPLEFT", 0, y)
@@ -620,6 +620,8 @@ local function monter(m, banniere)
     f:SetPoint("CENTER", banniere, "CENTER", 0, 0)
     local largeur = (f:GetWidth() or 0) * (f:GetScale() or 1)
     if largeur > W - 40 then f:SetScale((f:GetScale() or 1) * (W - 40) / largeur) end
+    local hauteur = (f:GetHeight() or 0) * (f:GetScale() or 1)
+    if hauteur > VITRINE - 12 then f:SetScale((f:GetScale() or 1) * (VITRINE - 12) / hauteur) end
 end
 
 local function changerApercu(m, p)
@@ -887,6 +889,11 @@ end
 local ALIAS = {}
 
 function Menu.ouvrir(nom, onglet)
+    -- Jamais de fenêtre de réglages en combat.
+    if InCombatLockdown() or (UnitAffectingCombat and UnitAffectingCombat("player")) then
+        ns.Jeu.message(L["Pas pendant un combat : le menu s'ouvre une fois le combat fini."])
+        return
+    end
     creer()
     if ALIAS[nom] then nom, onglet = ALIAS[nom][1], onglet or ALIAS[nom][2] end
     nom = (nom and pages[nom]) and nom or actuelle or "accueil"
