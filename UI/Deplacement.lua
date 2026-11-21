@@ -99,7 +99,9 @@ function Deplacement.basculerVerrou()
         or L["Éléments déverrouillés : glisse-les où tu veux."])
 end
 
-function Deplacement.inscrire(cadre, nom, cle, defaut)
+-- libre : fenêtre que tu ouvres toi-même (Auto Sets, Ménage), jamais
+-- verrouillée par le cadenas.
+function Deplacement.inscrire(cadre, nom, cle, defaut, libre)
     local i = parCle[cle]
     if not i then
         i = { cle = cle }
@@ -115,7 +117,7 @@ function Deplacement.inscrire(cadre, nom, cle, defaut)
     cadre:EnableMouse(true)
     cadre:RegisterForDrag("LeftButton")
     cadre:SetScript("OnDragStart", function(self)
-        if Deplacement.bloque() then return end
+        if not libre and Deplacement.bloque() then return end
         self.sgGlisse = true
         self:StartMoving()
     end)

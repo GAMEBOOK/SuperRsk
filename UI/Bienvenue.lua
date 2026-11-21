@@ -24,6 +24,7 @@ local enAttente = false   -- à rouvrir après le combat
 local PHARES = {
     { "pecheActif", "Auto Fishing", L["Une touche pour pêcher : canne, appât, lancer, ferrer."] },
     { "proposerEquipement", "Auto Equip", L["Propose tes améliorations d'équipement en un clic."] },
+    { "tenuesActif", "Auto Sets", L["Tenues qui se mettent seules : monture, récolte, métiers."] },
     { "butinRapide", "Auto Loot", L["Ramassage instantané, avec la liste du butin."] },
     { "marchandActif", "Auto Sell & Repair", L["Vend tes gris et répare chez chaque marchand."] },
     { "butinPoubelle", L["Poubelle (sacs pleins)"], L["Sacs pleins : propose quoi jeter, au plus juste."] },
@@ -225,7 +226,7 @@ local function creer()
         d:SetSpacing(2)
         d:SetText(ph[3])
         cases[#cases + 1] = c
-        y = y - 36
+        y = y - 33   -- 7 modules dans la page, au-dessus des points d'étape
     end
     p2.maj = function() for _, c in ipairs(cases) do c.maj() end end
     pages[3] = p2

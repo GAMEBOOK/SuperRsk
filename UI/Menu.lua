@@ -588,6 +588,7 @@ function apropos.construire(p)
     bloc(L["COMMANDES"], {
         a .. "/sg|r  " .. L["ce menu (aussi /srsk)"],
         a .. "/sg move|r  " .. L["déplacer les barres et fenêtres"],
+        a .. "/sg tenues|r  " .. L["tes tenues Auto Sets"],
         a .. "/sg tir|r  " .. L["armement mesuré du tir auto / de la baguette"],
         a .. "/sg spe|r  " .. L["arbre de talents retenu par Auto Equip"],
     })
@@ -793,7 +794,7 @@ local function creer()
         local oui = ns.Reglages.get("elementsVerrouilles") == true
         GameTooltip:SetText(oui and L["Éléments verrouillés"] or L["Éléments déverrouillés"], 1, 1, 1)
         GameTooltip:AddLine(oui and L["Rien ne bouge en glissant : Maj + glisser pour en déplacer un. Clic : déverrouiller."]
-            or L["Clic : verrouiller tous les éléments (barres, fenêtres, widgets, bouton de la minicarte)."], 0.6, 0.64, 0.7, true)
+            or L["Clic : verrouiller tous les éléments (barres, widgets, fenêtres qui s'ouvrent seules, bouton de la minicarte). Les fenêtres que tu ouvres toi-même restent mobiles."], 0.6, 0.64, 0.7, true)
         GameTooltip:Show()
     end)
     cadenas:SetScript("OnLeave", function() GameTooltip:Hide() end)

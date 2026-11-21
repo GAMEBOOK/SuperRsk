@@ -1189,3 +1189,194 @@ end
 function Jeu.message(texte)
     print("|cff33ccffSuperRsk|r " .. texte)
 end
+
+---------------------------------------------------------------------------
+-- Auto Sets : objets portables (sacs et équipement), bonus lus dans les
+-- info-bulles, métiers connus, fenêtre de métier ouverte, retrait d'une pièce.
+---------------------------------------------------------------------------
+
+-- Emplacements où peut aller un objet, d'après son type (INVTYPE_…).
+local CASES_TYPE = {
+    INVTYPE_HEAD = { 1 }, INVTYPE_NECK = { 2 }, INVTYPE_SHOULDER = { 3 }, INVTYPE_BODY = { 4 },
+    INVTYPE_CHEST = { 5 }, INVTYPE_ROBE = { 5 }, INVTYPE_WAIST = { 6 }, INVTYPE_LEGS = { 7 },
+    INVTYPE_FEET = { 8 }, INVTYPE_WRIST = { 9 }, INVTYPE_HAND = { 10 }, INVTYPE_FINGER = { 11, 12 },
+    INVTYPE_TRINKET = { 13, 14 }, INVTYPE_CLOAK = { 15 }, INVTYPE_TABARD = { 19 },
+    INVTYPE_WEAPON = { 16, 17 }, INVTYPE_WEAPONMAINHAND = { 16 }, INVTYPE_2HWEAPON = { 16 },
+    INVTYPE_WEAPONOFFHAND = { 17 }, INVTYPE_SHIELD = { 17 }, INVTYPE_HOLDABLE = { 17 },
+    INVTYPE_RANGED = { 18 }, INVTYPE_RANGEDRIGHT = { 18 }, INVTYPE_THROWN = { 18 }, INVTYPE_RELIC = { 18 },
+}
+Jeu.CASES_TYPE = CASES_TYPE
+
+-- Texte des lignes 2 et suivantes de l'info-bulle de scan, en minuscules.
+-- Les lignes « Requiert … » (métier ou niveau demandé) ne sont pas des bonus.
+local function lignesScan(remplir)
+    local t = infoScan()
+    remplir(t)
+    local l = {}
+    for i = 2, t:NumLines() or 0 do
+        for _, cote in ipairs({ "Left", "Right" }) do
+            local f = _G["SuperGuideScanText" .. cote .. i]
+            local txt = f and f:GetText()
+            if type(txt) == "string" and txt ~= "" then
+                txt = txt:lower()
+                -- Ni « Requiert … », ni le texte d'ambiance entre guillemets.
+                if not (txt:find("^requi") or txt:find("^niveau") or txt:find('^"') or txt:find("^«")) then
+                    l[#l + 1] = txt
+                end
+            end
+        end
+    end
+    return l
+end
+
+-- Bonus lu dans des lignes d'info-bulle pour une liste de mots : le nombre
+-- (« +5 Herboristerie », « vitesse de votre monture de 3% », « by 3 »), ou 1
+-- pour un mot « seul » (enchantement sans nombre : Éperons en mithril).
+-- nil sans rien.
+function Jeu.bonusDans(lignes, mots)
+    local meilleur
+    for _, txt in ipairs(lignes) do
+        for _, m in ipairs(mots) do
+            local mot, seul = m, false
+            if type(m) == "table" then mot, seul = m[1], m.seul end
+            if txt:find(mot, 1, true) then
+                local n = tonumber(txt:match("%+%s*(%d+)") or txt:match("%f[%a]de%s+(%d+)")
+                    or txt:match("%f[%a]by%s+(%d+)") or txt:match("(%d+)%s*%%"))
+                if not n and seul then n = 1 end
+                if n and (not meilleur or n > meilleur) then meilleur = n end
+            end
+        end
+    end
+    return meilleur
+end
+
+-- Tout ce que tu peux porter, dans tes sacs et sur toi :
+-- { { lien, id, icone, cases, niveau, qualite, porte (emplacement ou nil), lignes } }.
+-- « lignes » : le texte de l'info-bulle (pour chercher les bonus).
+function Jeu.objetsPortables()
+    local liste = {}
+    local function ajouter(lien, remplir, porte)
+        local id, _, _, loc, icone = C_Item.GetItemInfoInstant(lien)
+        local cases = id and CASES_TYPE[loc]
+        if not cases then return end
+        if not porte and not portable(remplir) then return end
+        local _, _, qualite, niveau = C_Item.GetItemInfo(lien)
+        liste[#liste + 1] = { lien = lien, id = id, icone = icone, cases = cases, niveau = niveau or 0,
+                              qualite = qualite or 1, porte = porte, lignes = lignesScan(remplir) }
+    end
+    for case = 1, 19 do
+        local lien = GetInventoryItemLink and GetInventoryItemLink("player", case)
+        if lien then ajouter(lien, function(t) t:SetInventoryItem("player", case) end, case) end
+    end
+    if C_Container and C_Container.GetContainerNumSlots then
+        for sac = 0, 4 do
+            for c = 1, C_Container.GetContainerNumSlots(sac) or 0 do
+                local lien = C_Container.GetContainerItemLink(sac, c)
+                if lien then ajouter(lien, function(t) t:SetBagItem(sac, c) end, nil) end
+            end
+        end
+    end
+    return liste
+end
+
+-- Numéro de l'objet porté à cet emplacement, nil si vide.
+function Jeu.idPiece(case)
+    return GetInventoryItemID and GetInventoryItemID("player", case) or nil
+end
+
+-- Objet de ce numéro dans les sacs ou sur toi ?
+function Jeu.possede(id)
+    if not id then return false end
+    for case = 1, 19 do
+        if Jeu.idPiece(case) == id then return true end
+    end
+    return C_Item and C_Item.GetItemCount and (C_Item.GetItemCount(id) or 0) > 0 or false
+end
+
+-- Métiers connus, dans la langue du jeu : { "Herboristerie", "Minage", ... }.
+function Jeu.metiers()
+    local l = {}
+    if GetNumSkillLines and GetSkillLineInfo then
+        for i = 1, GetNumSkillLines() do
+            local ok, nom, entete = pcall(GetSkillLineInfo, i)
+            if ok and nom and not entete then l[#l + 1] = nom end
+        end
+    end
+    if #l == 0 and GetProfessions and GetProfessionInfo then
+        for _, p in ipairs({ GetProfessions() }) do
+            local ok, nom = pcall(GetProfessionInfo, p)
+            if ok and nom then l[#l + 1] = nom end
+        end
+    end
+    return l
+end
+
+-- Nom du métier dont la fenêtre est ouverte, nil sinon.
+local metierOuvert
+function Jeu.noterMetier(nom) metierOuvert = nom end
+function Jeu.metierOuvert() return metierOuvert end
+function Jeu.lireMetierOuvert()
+    if GetTradeSkillLine then
+        local nom = GetTradeSkillLine()
+        if nom and nom ~= "UNKNOWN" then return nom end
+    end
+    if C_TradeSkillUI and C_TradeSkillUI.GetBaseProfessionInfo then
+        local ok, i = pcall(C_TradeSkillUI.GetBaseProfessionInfo)
+        if ok and i and i.professionName then return i.professionName end
+    end
+    if GetCraftDisplaySkillLine then
+        local nom = GetCraftDisplaySkillLine()
+        if nom then return nom end
+    end
+end
+
+-- Incantation ou canalisation en cours (une pièce changée la couperait).
+function Jeu.incante()
+    return (UnitCastingInfo and UnitCastingInfo("player")) ~= nil
+        or (UnitChannelInfo and UnitChannelInfo("player")) ~= nil
+end
+
+function Jeu.enSelle()
+    return IsMounted and IsMounted() and not (UnitOnTaxi and UnitOnTaxi("player")) or false
+end
+function Jeu.nage() return IsSwimming and IsSwimming() or false end
+function Jeu.repos() return IsResting and IsResting() or false end
+function Jeu.typeInstance()
+    if not IsInInstance then return "none" end
+    local _, t = IsInInstance()
+    return t or "none"
+end
+
+-- Range la pièce de cet emplacement dans un sac (emplacement laissé vide).
+-- false s'il n'y a pas de place ou en combat.
+function Jeu.retirer(case)
+    if Jeu.enCombat() or not (PickupInventoryItem and Jeu.idPiece(case)) then return false end
+    if not (C_Container and C_Container.GetContainerNumFreeSlots) then return false end
+    for sac = 0, 4 do
+        local libres, famille = C_Container.GetContainerNumFreeSlots(sac)
+        if (famille or 0) == 0 and (libres or 0) > 0 then
+            PickupInventoryItem(case)
+            if sac == 0 then PutItemInBackpack()
+            elseif C_Container.ContainerIDToInventoryID then PutItemInBag(C_Container.ContainerIDToInventoryID(sac))
+            else ClearCursor(); return false end
+            return true
+        end
+    end
+    return false
+end
+
+-- Nom de la cible (nil sans cible) ; joueur ennemi ciblé ; zone et sous-zone.
+function Jeu.cibleNom()
+    if not (UnitExists and UnitExists("target")) then return nil end
+    return UnitName("target")
+end
+function Jeu.cibleJoueurEnnemi()
+    if not (UnitExists and UnitExists("target")) then return false end
+    return (UnitIsPlayer("target") and UnitIsEnemy and UnitIsEnemy("player", "target")) and true or false
+end
+function Jeu.zones()
+    local z = GetRealZoneText and GetRealZoneText() or nil
+    local s = GetSubZoneText and GetSubZoneText() or nil
+    if s == "" then s = nil end
+    return z, s
+end

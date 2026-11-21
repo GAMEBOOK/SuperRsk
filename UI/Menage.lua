@@ -256,7 +256,7 @@ function Menage.creer()
 
     cadre:Hide()
     if ns.Deplacement then
-        ns.Deplacement.inscrire(cadre, L["Ménage des objets de quête"], "menage", { "CENTER", 0, 40 })
+        ns.Deplacement.inscrire(cadre, L["Ménage des objets de quête"], "menage", { "CENTER", 0, 40 }, true)
     end
     if UISpecialFrames then table.insert(UISpecialFrames, "SuperGuideMenage") end   -- Échap la ferme
     -- Index des quêtes de Questie, construit doucement après la connexion.

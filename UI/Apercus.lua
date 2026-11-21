@@ -256,6 +256,28 @@ end, function(f, t)
     f.objets[3]:SetPoint("CENTER", 50 - 25 * entre(t, 2.2, 2.8), 4)
 end)
 
+-- Auto Sets : en selle, la carotte prend la place du bijou ; pied à terre,
+-- le bijou revient.
+Apercus.definir("tenues", 4.4, function(f)
+    f.monture = icone(f, ICONES .. "Ability_Mount_RidingHorse", 30)
+    f.monture:SetPoint("CENTER", -70, 4)
+    f.bijou = icone(f, ICONES .. "INV_Jewelry_Talisman_07", 38)
+    f.bijou:SetPoint("CENTER", 20, 4)
+    f.carotte = icone(f, ICONES .. "INV_Misc_Food_54", 38)
+    f.carotte:SetPoint("CENTER", 20, 4)
+    f.mot = texte(f, "petit", "vert", L["En selle : tenue Monture mise"])
+    f.mot:SetPoint("TOP", f.bijou, "BOTTOM", -30, -8)
+    f.retour = texte(f, "petit", "accent", L["Pied à terre : équipement remis"])
+    f.retour:SetPoint("TOP", f.bijou, "BOTTOM", -30, -8)
+end, function(f, t)
+    local selle = entre(t, 0.6, 0.9) * (1 - entre(t, 2.8, 3.1))
+    f.monture:SetAlpha(0.25 + 0.75 * selle)
+    f.carotte:SetAlpha(selle)
+    f.bijou:SetAlpha(1 - selle)
+    f.mot:SetAlpha(vie(t, 0.9, 2.6))
+    f.retour:SetAlpha(vie(t, 3.1, 4.0))
+end)
+
 -- Météo et brouillard : la pluie tombe, puis s'arrête.
 Apercus.definir("meteo", 4, function(f)
     f.gouttes = {}

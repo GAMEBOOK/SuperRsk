@@ -171,6 +171,10 @@ local function demarrer()
 
     lancer(ns.Peche.creer)
     lancer(ns.Menage.creer)
+    lancer(ns.TenuesUI.creer)
+    ns.Reglages.ecouter(function(cle)
+        if cle == "tenuesActif" then ns.Tenues.evaluer(); ns.TenuesUI.actualiser() end
+    end)
     ns.Reglages.ecouter(ns.Peche.appliquerInterface)
 
     lancer(ns.Bienvenue.demarrer)
@@ -274,6 +278,9 @@ evenements:RegisterEvent("PLAYER_LOGIN")
 -- /sg dr : effets néfastes de la cible lus par un addon (test d'un suivi des DR)
 ---------------------------------------------------------------------------
 
+-- Touche d'une tenue Auto Sets (Bindings.xml).
+function SuperRsk_Tenue(i) if ns.TenuesUI then ns.TenuesUI.touche(i) end end
+
 SLASH_SUPERGUIDE1 = "/sg"
 SLASH_SUPERGUIDE2 = "/srsk"
 SlashCmdList.SUPERGUIDE = function(arg)
@@ -296,6 +303,10 @@ SlashCmdList.SUPERGUIDE = function(arg)
         ns.Menage.basculer()
     elseif arg == "menage ?" or arg == "ménage ?" then
         for _, ligne in ipairs(ns.Menage.expliquer()) do ns.Jeu.message(ligne) end
+    elseif arg == "tenues" or arg == "tenue" or arg == "sets" or arg == "set" then
+        ns.TenuesUI.basculer()
+    elseif arg:match("^tenue ") or arg:match("^set ") then
+        ns.TenuesUI.parNom(arg:match("^%S+%s+(.+)$"))
     elseif arg == "bienvenue" or arg == "welcome" then
         ns.Bienvenue.ouvrir()
     elseif arg == "photo" then

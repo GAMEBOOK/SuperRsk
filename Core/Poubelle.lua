@@ -56,6 +56,14 @@ function Poubelle.surPlein()
     local tous = {}
     for _, o in ipairs(ns.Jeu.objetsMediocres()) do tous[#tous + 1] = o end
     for _, o in ipairs(ns.Jeu.objetsCommuns and ns.Jeu.objetsCommuns() or {}) do tous[#tous + 1] = o end
+    -- Une pièce de tenue Auto Sets n'est jamais proposée.
+    if ns.Tenues and ns.Tenues.protege then
+        local gardes = {}
+        for _, o in ipairs(tous) do
+            if not ns.Tenues.protege(o.lien) then gardes[#gardes + 1] = o end
+        end
+        tous = gardes
+    end
     local c = Poubelle.candidat(tous)
     local n = ns.Menage and R("menageActif") ~= false and ns.Menage.nbSurs() or 0
     if n > 0 and not (c and Poubelle.valeur(c) == 0) then c = { menage = n } end

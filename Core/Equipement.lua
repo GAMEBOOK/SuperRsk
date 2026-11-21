@@ -411,6 +411,9 @@ end
 local function porteur()
     local p = ns.Peche
     if p and p.enPeche and p.enPeche() and p.porteNormal then return p.porteNormal(ns.Jeu.objetPorte) end
+    -- Tenue Auto Sets mise : on compare avec l'équipement d'avant.
+    local t = ns.Tenues
+    if t and t.enCours and t.enCours() then return t.porteNormal(ns.Jeu.objetPorte) end
     return ns.Jeu.objetPorte
 end
 
@@ -513,6 +516,12 @@ function Equipement.verifier()
     -- avec l'équipement de combat, mais pas de fenêtre (on ne va pas te
     -- retirer la canne des mains). Elle revient quand l'équipement est remis.
     if ns.Peche and ns.Peche.enPeche and ns.Peche.enPeche() then
+        file = {}
+        montrer(nil)
+        return
+    end
+    -- Tenue Auto Sets mise (carotte en selle…) : pas de fenêtre non plus.
+    if ns.Tenues and ns.Tenues.enCours and ns.Tenues.enCours() then
         file = {}
         montrer(nil)
         return

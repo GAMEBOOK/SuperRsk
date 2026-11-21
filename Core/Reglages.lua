@@ -13,6 +13,7 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 Reglages.DEFAUTS = {
     equipArbre = 0, proposerEquipement = true, equipFleches = true, equipBoE = 2, choisirRecompense = true,
     minimapCache = false, elementsVerrouilles = false,
+    tenuesActif = true, tenuesMessage = true, tenuesDelai = 10,
     barreXP = true, barreXPLargeur = 580, xpTexture = "d1", xpContour = "noir", xpTextes = 2, xpContourTexte = "fin",
     xpBarreQuetes = true, xpBarreEnCours = false, xpBarreRepos = true,
     xpCouleurXP = false, xpCouleurQuetes = false, xpCouleurEnCours = false, xpCouleurRepos = false,
@@ -340,6 +341,16 @@ Reglages.MODULES = {
         { cle = "pecheWidget", type = "case", libelle = L["Afficher la carte de pêche"],
           info = L["Prises, valeur et temps de la session, et le bouton pour remettre ton équipement. Survol : le détail. Glisse-la où tu veux."] },
     } },
+    { nom = "tenues", titre = "Auto Sets", interrupteur = "tenuesActif",
+      boutons = { { texte = L["Ouvrir mes tenues"], action = function() if ns.TenuesUI then ns.TenuesUI.ouvrir() end end } },
+      desc = L["Des tenues qui se mettent toutes seules au bon moment, puis ton équipement revient : la Carotte au bout d'un bâton et tes éperons en selle, tes gants d'herboriste ou de mineur au survol d'une plante ou d'un filon, ta tenue de métier quand sa fenêtre est ouverte, une tenue de ville, de champ de bataille ou de donjon. Les objets à bonus de tes sacs sont trouvés pour toi. /sg tenues"],
+      options = {
+        { cle = "tenuesActif", type = "case", libelle = L["Activer Auto Sets"],
+          info = L["Jamais en combat, pendant une incantation ni pendant Auto Fishing : la tenue attend le bon moment."] },
+        { cle = "tenuesMessage", type = "case", libelle = L["Me dire quand une tenue change"] },
+        { cle = "tenuesDelai", type = "curseur", min = 3, max = 30, pas = 1, libelle = L["Récolte : remettre mon équipement après (secondes)"],
+          info = L["Après le survol d'une plante, d'un filon ou d'un corps, la tenue de récolte reste ce temps-là."] },
+    } },
     { nom = "menage", titre = L["Ménage des objets de quête"], interrupteur = "menageActif",
       boutons = { { texte = L["Faire le ménage"], action = function() if ns.Menage then ns.Menage.ouvrir() end end } },
       desc = L["Sur demande (/sg menage ou le bouton ci-dessus) : les objets de quête de tes sacs qui ne servent sûrement plus, à jeter un clic par objet. Seuls les objets dont on a la preuve sont proposés : avec Questie, toutes leurs quêtes sont terminées ; sans lui, la quête qu'ils commencent est déjà faite. Les autres (accès de raid, suite de chaîne…) restent cachés, sauf si tu demandes à les voir. Installe Questie pour en trouver plus."],
@@ -390,7 +401,7 @@ Reglages.MODULES = {
 -- dans cet ordre (les « Auto » ensemble, puis sacs, affichage, jeu, image).
 Reglages.FAMILLES = {
     { cle = "auto", titre = L["Automatique"],
-      modules = { "peche", "autoEquip", "autoLoot", "marchand", "autoRangs", "autoTir" } },
+      modules = { "peche", "autoEquip", "tenues", "autoLoot", "marchand", "autoRangs", "autoTir" } },
     { cle = "sacs", titre = L["Sacs et équipement"], modules = { "poubelle", "menage", "usure" } },
     { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "barreRep", "vols", "vh" } },
     { cle = "jeu", titre = L["Jeu et groupe"], modules = { "softInteract", "marqueurs", "swapGroupe", "spyPing" } },

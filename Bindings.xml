@@ -3,4 +3,10 @@
     <Binding name="CLICK SuperGuideSwapGroupe:LeftButton" category="ADDONS"></Binding>
     <Binding name="CLICK SuperGuideSwapValider:LeftButton" category="ADDONS"></Binding>
     <Binding name="CLICK SuperGuidePecheTenue:LeftButton" category="ADDONS"></Binding>
+    <Binding name="SUPERRSK_TENUE1" category="ADDONS">SuperRsk_Tenue(1)</Binding>
+    <Binding name="SUPERRSK_TENUE2" category="ADDONS">SuperRsk_Tenue(2)</Binding>
+    <Binding name="SUPERRSK_TENUE3" category="ADDONS">SuperRsk_Tenue(3)</Binding>
+    <Binding name="SUPERRSK_TENUE4" category="ADDONS">SuperRsk_Tenue(4)</Binding>
+    <Binding name="SUPERRSK_TENUE5" category="ADDONS">SuperRsk_Tenue(5)</Binding>
+    <Binding name="SUPERRSK_TENUE6" category="ADDONS">SuperRsk_Tenue(6)</Binding>
 </Bindings>
