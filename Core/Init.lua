@@ -144,6 +144,7 @@ local function demarrer()
 
     lancer(ns.Graphismes.synchroniser)
     ns.Reglages.ecouter(ns.Graphismes.appliquer)
+    inscrire("CVAR_UPDATE")
 
     lancer(ns.Vols.creer)
     ns.Reglages.ecouter(ns.Vols.appliquer)
@@ -185,6 +186,10 @@ evenements:SetScript("OnEvent", function(_, e, ...)
     if e == "ITEM_DATA_LOAD_RESULT" then
         local id, ok = ...
         if ok and ns.Jeu.chargementAttendu(id) then demanderVerif() end
+    end
+    if e == "CVAR_UPDATE" then
+        ns.Graphismes.surCvar((...))
+        return
     end
     if e == "CHAT_MSG_ADDON" then
         ns.SwapGroupe.surMessage(...)

@@ -320,7 +320,7 @@ Reglages.MODULES = {
           info = L["Quand tu rends une quête, un message nomme les objets devenus inutiles (sûrs seulement). Sacs pleins sans objet gris à jeter : la Poubelle propose aussi le ménage."] },
     } },
     { nom = "softInteract", titre = L["Interaction rapide"], interrupteur = "softInteract",
-      desc = L["Le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
+      desc = L["Le jeu vise tout seul l'objet le plus proche autour de toi (filon, plante, coffre, objet de quête, bouchon de pêche), jusqu'à 20 m, avec une icône au-dessus, et les objets que tu peux prendre scintillent. Un appui sur ta touche « Interagir avec la cible » (Options > Raccourcis) le prend. Coupe le module et tes réglages d'avant reviennent."],
       options = {
         { cle = "softInteract", type = "case", libelle = L["Viser les objets autour de moi"],
           info = L["Ciblage souple sur 360°, 20 m, objets compris (bouchon de pêche aussi), icône au-dessus de l'objet visé. Sans touche « Interagir avec la cible », rien ne se prend : assigne-la dans Options > Raccourcis."] },

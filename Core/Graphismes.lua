@@ -53,11 +53,16 @@ Graphismes.GROUPES = {
     -- les objets. SoftTargetNameplateInteract à 0 : à 1, l'icône part sur la
     -- plaque de nom de l'objet, et les objets n'en ont pas sur Forever, donc
     -- plus d'icône du tout (constaté le 18/11/2026).
+    -- Contours coupés mais scintillement gardé : les objets avec lesquels on
+    -- peut interagir brillent (graphicsOutlineMode 0 et
+    -- outlineModeShowLootEffectWhenDisabled 1), remis si le jeu les change.
     { nom = "softInteract", titre = L["Interaction rapide"], tenir = true,
       actif = function() return R("softInteract") == true end,
       cvars = { { "SoftTargetInteract", "3" }, { "SoftTargetInteractArc", "2" },
                 { "SoftTargetIconGameObject", "1" }, { "SoftTargetLowPriorityIcons", "1" },
-                { "SoftTargetInteractRange", "20" }, { "SoftTargetNameplateInteract", "0" } } },
+                { "SoftTargetInteractRange", "20" }, { "SoftTargetNameplateInteract", "0" },
+                { "graphicsOutlineMode", "0", surveiller = true },
+                { "outlineModeShowLootEffectWhenDisabled", "1", surveiller = true } } },
     { nom = "brouillard", titre = L["Brouillard"], tenir = true,
       actif = function() return R("meteoActif") == true and R("sansBrouillard") ~= false end,
       cvars = { { "volumeFog", "0" }, { "volumeFogLevel", "0" } } },
@@ -89,11 +94,11 @@ end
 -- Un réglage que ce client n'a pas est sauté. Rend true si quelque chose a changé.
 local function poser(g, sauvegarde)
     local jeu, change = ns.Jeu, false
-    local garde = sauvegarde[g.nom]
-    if not garde then
-        garde = {}
-        for _, c in ipairs(g.cvars) do garde[c[1]] = jeu.cvar(c[1]) end
-        sauvegarde[g.nom] = garde
+    local garde = sauvegarde[g.nom] or {}
+    sauvegarde[g.nom] = garde
+    -- Un réglage ajouté dans une version plus récente est gardé lui aussi.
+    for _, c in ipairs(g.cvars) do
+        if garde[c[1]] == nil then garde[c[1]] = jeu.cvar(c[1]) end
     end
     for _, c in ipairs(g.cvars) do
         local actuel = jeu.cvar(c[1])
@@ -139,6 +144,25 @@ function Graphismes.synchroniser()
             ns.Jeu.message(L["%s : tes réglages d'avant sont revenus"]:format(g.titre))
         end
     end
+end
+
+-- Réglages « surveiller » : si le jeu en change un (qualité graphique, menu
+-- Options), on le remet un instant après. Pas les autres : la pêche change
+-- la portée d'interaction le temps d'une session.
+local SURVEILLES, prevu = {}, false
+for _, g in ipairs(Graphismes.GROUPES) do
+    for _, c in ipairs(g.cvars) do
+        if c.surveiller then SURVEILLES[c[1]:lower()] = true end
+    end
+end
+
+function Graphismes.surCvar(nom)
+    if type(nom) ~= "string" or not SURVEILLES[nom:lower()] or prevu then return end
+    prevu = true
+    C_Timer.After(0.5, function()
+        prevu = false
+        Graphismes.synchroniser()
+    end)
 end
 
 function Graphismes.sortieCombat()
