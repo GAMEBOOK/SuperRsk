@@ -15,6 +15,7 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 -- Ordre des pages, titres et accroches (anglais : la page CurseForge l'est).
 local PAGES = {
+    { "presentation", "", "" },
     { "peche", "Auto Fishing", "One key casts, hooks, equips your pole and puts the lure on." },
     { "autoEquip", "Auto Equip", "Never miss an upgrade: the best gear for your class and talents, in one click." },
     { "menage", "Quest Item Cleanup", "Quest items you no longer need, gone in one click." },
@@ -58,8 +59,76 @@ local function rendre()
     if a.module and a.module.apercu then pcall(a.module.apercu, false) end
 end
 
+-- Page de présentation (image principale de la page CurseForge) : le logo
+-- en grand avec sa lueur, le nom, l'accroche et les modules phares.
+local presentation
+local PHARES = { "Auto Fishing", "Auto Equip", "Auto Loot", "Auto Sell & Repair",
+                 "Quest Item Cleanup", "XP Bar", "Junk", "Boost FPS" }
+local function creerPresentation()
+    local Th = T()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(980, 470)
+    f:Hide()
+    local logo = f:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(Th.icone("boussole"))
+    logo:SetSize(120, 120)
+    logo:SetPoint("TOP", 0, -10)
+    logo:SetVertexColor(Th.rgb("accent"))
+    f.tourner = ns.Controles.animerLogo(logo, nil, 330, nil, 6)
+    local nom = f:CreateFontString(nil, "OVERLAY")
+    nom:SetFont(Th.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 84, "")
+    nom:SetTextColor(Th.rgb("texte"))
+    nom:SetPoint("TOP", logo, "BOTTOM", 0, -26)
+    nom:SetText("SuperRsk")
+    local qol = f:CreateFontString(nil, "OVERLAY")
+    qol:SetFont(Th.MEDIA .. "Polices\\Archivo-Medium.ttf", 26, "")
+    qol:SetTextColor(Th.rgb("accent"))
+    qol:SetPoint("TOP", nom, "BOTTOM", 0, -6)
+    qol:SetText("All in One QoL for WoW Forever")
+    local phrase = f:CreateFontString(nil, "OVERLAY")
+    phrase:SetFont(Th.MEDIA .. "Polices\\Archivo-Regular.ttf", 19, "")
+    phrase:SetTextColor(Th.rgb("texteDoux"))
+    phrase:SetPoint("TOP", qol, "BOTTOM", 0, -16)
+    phrase:SetText("One addon, one key, set up in 30 seconds.")
+    -- Les modules phares en pastilles, sur une ligne centrée.
+    local pastilles, largeur = {}, 0
+    for i, nomModule in ipairs(PHARES) do
+        local p = CreateFrame("Frame", nil, f)
+        Th.fond(p, "flot", 0.95, i == 1 and "accent" or "bordFort")
+        local t = p:CreateFontString(nil, "OVERLAY")
+        t:SetFont(Th.MEDIA .. "Polices\\Archivo-Medium.ttf", 16, "")
+        t:SetTextColor(Th.rgb(i == 1 and "accent" or "texte"))
+        t:SetPoint("CENTER")
+        t:SetText(nomModule)
+        p:SetSize((t:GetStringWidth() or 100) + 28, 34)
+        pastilles[i] = p
+        largeur = largeur + p:GetWidth() + (i > 1 and 10 or 0)
+    end
+    local x = -largeur / 2
+    for _, p in ipairs(pastilles) do
+        p:SetPoint("TOPLEFT", phrase, "BOTTOM", x, -30)
+        x = x + p:GetWidth() + 10
+    end
+    local plus = f:CreateFontString(nil, "OVERLAY")
+    plus:SetFont(Th.MEDIA .. "Polices\\Archivo-Regular.ttf", 16, "")
+    plus:SetTextColor(Th.rgb("textePale"))
+    plus:SetPoint("TOP", phrase, "BOTTOM", 0, -80)
+    plus:SetText(("+ %d more modules  ·  English and French  ·  /sg"):format(#ns.Reglages.MODULES - #PHARES))
+    return f
+end
+
 -- Le ménage se montre avec sa vraie fenêtre, remplie d'exemples.
 local SPECIAUX = {
+    presentation = function(oui)
+        if not oui then
+            if presentation then presentation:Hide() end
+            return presentation
+        end
+        presentation = presentation or creerPresentation()
+        presentation:Show()
+        presentation.tourner()
+        return presentation
+    end,
     menage = function(oui)
         if ns.Menage and ns.Menage.exemple then return ns.Menage.exemple(oui) end
     end,

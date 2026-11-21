@@ -40,6 +40,7 @@ function Usure.afficher(e)
     if apercu then e = EXEMPLE end
     if not apercu and R("usureActif") == false then widget:Hide(); return end
     if not (e and e.pourcent) or not (e.alerte or R("usureToujours")) then widget:Hide(); return end
+    widget.etiquette:SetShown(apercu)
     local style = R("usureStyle") or "icone"
     local r, g, b = couleur(e.pourcent)
     widget:SetScale(tonumber(R("usureTaille")) or 1)
@@ -123,6 +124,7 @@ function Usure.creer()
     widget.etiquette = C.texte(widget, "petit", "accent")
     widget.etiquette:SetPoint("BOTTOM", widget, "TOP", 0, 3)
     widget.etiquette:SetText(L["APERÇU"])
+    widget.etiquette:Hide()   -- seulement pendant l'aperçu du menu
     widget:SetScript("OnEnter", infobulle)
     widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
     widget:Hide()

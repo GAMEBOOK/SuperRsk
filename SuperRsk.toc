@@ -3,7 +3,7 @@
 ## Notes: WoW Forever quality of life toolbox: one-key Auto Fishing (gear, lure, combat swap), Auto Equip best gear upgrades, quest item cleanup, instant fast loot, XP bar with quest XP, auto shot / wand timer, spell rank updater, raid markers, multibox layer swap (LayerSwap), Spy enemy ping, honorable kills guild ranking, FPS boost, no weather. /sg
 ## Notes-frFR: Boîte à outils qualité de vie pour WoW Forever : pêche automatique en une touche (tenue, appât, armes en combat), Auto Equip (meilleur équipement), ménage des objets de quête, ramassage instantané, barre d'XP avec XP des quêtes, minuteur de tir auto / baguette, mise à jour des rangs de sorts, marqueurs de raid, swap de couche en multibox (LayerSwap), ping des ennemis Spy, classement des victoires honorables de la guilde, boost FPS, sans météo. /sg
 ## Author: SuperRsk
-## Version: 1.0.12
+## Version: 1.0.13
 ## Category: Miscellaneous
 ## Category-frFR: Divers
 ## Group: SuperRsk
