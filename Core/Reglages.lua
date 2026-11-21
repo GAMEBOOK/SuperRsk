@@ -12,7 +12,7 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 Reglages.DEFAUTS = {
     equipArbre = 0, proposerEquipement = true, equipFleches = true, equipBoE = 2, choisirRecompense = true,
-    minimapCache = false,
+    minimapCache = false, elementsVerrouilles = false,
     barreXP = true, barreXPLargeur = 580, xpTexture = "d1", xpContour = "noir", xpTextes = 2, xpContourTexte = "fin",
     xpBarreQuetes = true, xpBarreEnCours = false, xpBarreRepos = true,
     xpCouleurXP = false, xpCouleurQuetes = false, xpCouleurEnCours = false, xpCouleurRepos = false,

@@ -85,6 +85,20 @@ local function rect(i)
     return { x = x, y = y, l = l, h = h }
 end
 
+-- Verrou global (cadenas en haut du menu) : plus rien ne se glisse par
+-- erreur ; Maj enfoncée, on bouge quand même. Le mode Déplacer reste ouvert.
+function Deplacement.bloque()
+    return ns.Reglages.get("elementsVerrouilles") == true
+        and not (IsShiftKeyDown and IsShiftKeyDown())
+end
+
+function Deplacement.basculerVerrou()
+    local oui = not ns.Reglages.get("elementsVerrouilles")
+    ns.Reglages.set("elementsVerrouilles", oui)
+    ns.Jeu.message(oui and L["Éléments verrouillés : Maj + glisser pour en bouger un quand même."]
+        or L["Éléments déverrouillés : glisse-les où tu veux."])
+end
+
 function Deplacement.inscrire(cadre, nom, cle, defaut)
     local i = parCle[cle]
     if not i then
@@ -96,14 +110,18 @@ function Deplacement.inscrire(cadre, nom, cle, defaut)
     local p = SuperGuideDB and SuperGuideDB.positions and SuperGuideDB.positions[cle]
     if p then poser(cadre, p[1], p[2]) else poserDefaut(i) end
 
-    -- Glisser direct, comme la fenêtre du guide (sauf fenêtres verrouillées).
+    -- Glisser direct, sauf éléments verrouillés (Maj pour forcer).
     cadre:SetMovable(true)
     cadre:EnableMouse(true)
     cadre:RegisterForDrag("LeftButton")
     cadre:SetScript("OnDragStart", function(self)
-        if not ns.Reglages.get("verrou") then self:StartMoving() end
+        if Deplacement.bloque() then return end
+        self.sgGlisse = true
+        self:StartMoving()
     end)
     cadre:SetScript("OnDragStop", function(self)
+        if not self.sgGlisse then return end
+        self.sgGlisse = nil
         self:StopMovingOrSizing()
         local r = rect(i)
         poser(self, r.x, r.y)

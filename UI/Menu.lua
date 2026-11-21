@@ -770,6 +770,33 @@ local function creer()
     end, 90)
     deplacer:SetPoint("RIGHT", fermer, "LEFT", -8, 0)
     C.infobulle(deplacer, L["Déplacer"], L["Place où tu veux chaque élément des modules : barres, fenêtres, widget, boutons du swap."])
+
+    -- Cadenas : verrouille tous les éléments d'un coup (Maj pour bouger quand même).
+    local cadenas = CreateFrame("Button", nil, entete)
+    cadenas:SetSize(24, 24)
+    cadenas:SetPoint("RIGHT", deplacer, "LEFT", -8, 0)
+    local _, bordCadenas = T.fond(cadenas, "flot", 1, "bordFort")
+    local ic = cadenas:CreateTexture(nil, "ARTWORK")
+    ic:SetSize(14, 14)
+    ic:SetPoint("CENTER")
+    local function peindre()
+        local oui = ns.Reglages.get("elementsVerrouilles") == true
+        ic:SetTexture(T.icone(oui and "cadenas" or "cadenas-ouvert"))
+        ic:SetVertexColor(T.rgb(oui and "accent" or "texteDoux"))
+        if bordCadenas then bordCadenas:SetVertexColor(T.rgb(oui and "accent" or "bordFort")) end
+    end
+    peindre()
+    ns.Reglages.ecouter(function(cle) if cle == "elementsVerrouilles" then peindre() end end)
+    cadenas:SetScript("OnClick", function() ns.Deplacement.basculerVerrou() end)
+    cadenas:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        local oui = ns.Reglages.get("elementsVerrouilles") == true
+        GameTooltip:SetText(oui and L["Éléments verrouillés"] or L["Éléments déverrouillés"], 1, 1, 1)
+        GameTooltip:AddLine(oui and L["Rien ne bouge en glissant : Maj + glisser pour en déplacer un. Clic : déverrouiller."]
+            or L["Clic : verrouiller tous les éléments (barres, fenêtres, widgets, bouton de la minicarte)."], 0.6, 0.64, 0.7, true)
+        GameTooltip:Show()
+    end)
+    cadenas:SetScript("OnLeave", function() GameTooltip:Hide() end)
     -- Menu fermé (croix, Échap, /sg) : plus d'aperçu.
     cadre:SetScript("OnHide", function() changerApercu(nil) end)
     local sep = T.separateur(cadre)
