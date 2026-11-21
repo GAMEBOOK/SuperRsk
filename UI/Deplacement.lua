@@ -283,7 +283,7 @@ function Deplacement.ouvert() return actif end
 -- Élément -> réglage qui l'allume : un module coupé n'a pas de poignée (un
 -- cadre vide à placer pour une option coupée ne fait que dérouter).
 Deplacement.ALLUME = {
-    barreXP = "barreXP", butin = "butinListe", swap = "swapGroupeActif", poubelle = "butinPoubelle",
+    barreXP = "barreXP", barreRep = "barreRep", butin = "butinListe", swap = "swapGroupeActif", poubelle = "butinPoubelle",
     proposition = "proposerEquipement", barreTir = "tirActif", usure = "usureActif", vh = "vhActif",
 }
 

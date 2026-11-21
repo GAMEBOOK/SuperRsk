@@ -49,6 +49,19 @@ local function demanderBarre()
     end)
 end
 
+-- Barre de réputation : pareil.
+local BARRE_REP = {}
+for _, e in ipairs(ns.BarreRep.EVENEMENTS) do BARRE_REP[e] = true end
+local repEnAttente = false
+local function demanderRep()
+    if repEnAttente then return end
+    repEnAttente = true
+    C_Timer.After(0, function()
+        repEnAttente = false
+        ns.BarreRep.maj()
+    end)
+end
+
 -- Données de l'ancien module Guide (retiré) : effacées une fois pour toutes.
 local ANCIENS_COMPTE = { "echelle", "opacite", "texte", "nbApercu", "apercu", "verrou", "muet",
     "flecheCachee", "flecheEchelle", "carteEtapes", "carteNbEtapes", "autoAccepter", "autoRendre",
@@ -114,6 +127,11 @@ local function demarrer()
     for _, e in ipairs(ns.BarreXP.EVENEMENTS) do inscrire(e) end
     ns.Reglages.ecouter(ns.BarreXP.appliquer)
     C_Timer.NewTicker(1, ns.BarreXP.tic)
+
+    lancer(ns.BarreRep.creer)
+    for _, e in ipairs(ns.BarreRep.EVENEMENTS) do inscrire(e) end
+    ns.Reglages.ecouter(ns.BarreRep.appliquer)
+    C_Timer.NewTicker(5, ns.BarreRep.tic)
     inscrire("PLAYER_REGEN_DISABLED")
 
     lancer(ns.Butin.creer)
@@ -177,6 +195,10 @@ evenements:SetScript("OnEvent", function(_, e, ...)
     if e == "PLAYER_LEVEL_UP" then C_Timer.After(1, demanderVerif) end
     if USURE[e] then ns.Usure.verifier() end
     if ns.Marchand.evenements[e] then ns.Marchand.evenements[e](...); return end
+    if BARRE_REP[e] and ns.BarreRep.maj then
+        ns.BarreRep.surEvenement(e, ...)
+        demanderRep()
+    end
     if BARRE_XP[e] and ns.BarreXP.maj then
         ns.BarreXP.surEvenement(e, ...)
         demanderBarre()

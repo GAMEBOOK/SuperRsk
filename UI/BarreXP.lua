@@ -144,7 +144,10 @@ local function contourTexte()
     end
 end
 
-local function masquerBlizzard(oui)
+-- La barre du jeu est cachée tant que la nôtre est allumée (et l'option
+-- « Masquer la barre d'XP du jeu » cochée) ; notre barre coupée, elle revient.
+local function masquerBlizzard()
+    local oui = R("barreXP") == true and R("xpMasquerBlizzard") ~= false
     blizzardEnAttente = ns.Jeu.barreJeuCachee(oui) == false
 end
 
@@ -217,7 +220,7 @@ function BarreXP.creer()
     txt.bas2 = C.texte(cadre, "texte", "texte")
     for _, f in pairs(txt) do f:SetWordWrap(false) end
 
-    if R("xpMasquerBlizzard") then masquerBlizzard(true) end
+    masquerBlizzard()
     habiller()
     contourTexte()
     BarreXP.maj()
@@ -366,7 +369,7 @@ function BarreXP.surEvenement(e, ...)
     elseif e == "PLAYER_LEVEL_UP" then
         etat.temps = { secondes = 0, recu = GetTime() }
     elseif e == "PLAYER_REGEN_ENABLED" then
-        if blizzardEnAttente then masquerBlizzard(R("xpMasquerBlizzard")) end
+        if blizzardEnAttente then masquerBlizzard() end
     end
 end
 
@@ -377,7 +380,7 @@ local CLES = {
 
 function BarreXP.appliquer(cle, v)
     if not cadre then return end
-    if cle == "xpMasquerBlizzard" then masquerBlizzard(v) end
+    if cle == "xpMasquerBlizzard" or cle == "barreXP" then masquerBlizzard() end
     if cle == "xpTexture" or cle == "xpContour" or cle:find("^xpCouleur") then habiller() end
     if cle == "xpContourTexte" then contourTexte() end
     if cle == "positions" then

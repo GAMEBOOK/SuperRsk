@@ -247,27 +247,128 @@ function Jeu.tempsJoueRecu()
     C_Timer.After(0, function() muet = false end)
 end
 
--- Barre d'XP du jeu masquée (ou remontrée). Rien en combat : renvoie false,
--- l'appelant réessaie à PLAYER_REGEN_ENABLED.
-local BARRES_JEU = { "MainMenuExpBar", "ExhaustionTick", "MainStatusTrackingBarContainer" }
-local barreCachee, accroches = false, {}
+-- Barre d'XP (quoi = "xp", par défaut) ou de réputation (quoi = "rep") du
+-- jeu masquée ou remontrée. Rien en combat : renvoie false, l'appelant
+-- réessaie à PLAYER_REGEN_ENABLED.
+--
+-- Client moderne : deux conteneurs empilés, le principal et le secondaire.
+-- Avec une réputation suivie, elle prend le principal et l'XP passe dans le
+-- secondaire : on cache celui qui montre la barre remplacée, l'autre reste.
+local BARRES_JEU = { "MainMenuExpBar", "ExhaustionTick", "ReputationWatchBar",
+                     "MainStatusTrackingBarContainer", "SecondaryStatusTrackingBarContainer" }
+local CONTENEUR = { MainStatusTrackingBarContainer = "principal", SecondaryStatusTrackingBarContainer = "secondaire" }
+-- Anciens cadres (client classique) : ce qu'ils montrent.
+local ANCIENNE = { MainMenuExpBar = "xp", ExhaustionTick = "xp", ReputationWatchBar = "rep" }
+local ENUM = { xp = "Experience", rep = "Reputation" }
+local cacher, accroches, cachees = { xp = false, rep = false }, {}, {}
 
-function Jeu.barreJeuCachee(oui)
-    if InCombatLockdown() then return false end
-    barreCachee = oui and true or false
+-- Le conteneur montre-t-il cette barre ? Sans moyen de le savoir : l'XP est
+-- dans le principal.
+local function montre(quoi, nom, f)
+    local enum = StatusTrackingBarInfo and StatusTrackingBarInfo.BarsEnum
+    local i = enum and enum[ENUM[quoi]]
+    if i ~= nil then
+        if f.shownBarIndex ~= nil then return f.shownBarIndex == i end
+        local b = f.bars and f.bars[i]
+        if b and b.IsShown then return b:IsShown() == true end
+        return false
+    end
+    return quoi == "xp" and CONTENEUR[nom] == "principal"
+end
+
+local function aCacher(nom, f)
+    if ANCIENNE[nom] then return cacher[ANCIENNE[nom]] end
+    for quoi, oui in pairs(cacher) do
+        if oui and montre(quoi, nom, f) then return true end
+    end
+    return false
+end
+
+local function regler(nom, f)
+    if aCacher(nom, f) then
+        cachees[nom] = true
+        f:Hide()
+    elseif cachees[nom] then
+        cachees[nom] = nil
+        -- Un conteneur vide reste caché : le jeu le remontrera s'il en a besoin.
+        local vide = CONTENEUR[nom] and f.shownBarIndex ~= nil and f.shownBarIndex < 0
+        if not vide then f:Show() end
+    end
+end
+
+local function toutRegler()
+    if InCombatLockdown() then return end
     for _, nom in ipairs(BARRES_JEU) do
         local f = _G[nom]
-        if f then
-            if not accroches[nom] and f.HookScript then
-                accroches[nom] = true
-                f:HookScript("OnShow", function(self)
-                    if barreCachee and not InCombatLockdown() then self:Hide() end
-                end)
-            end
-            if barreCachee then f:Hide() else f:Show() end
+        if f then regler(nom, f) end
+    end
+end
+
+function Jeu.barreJeuCachee(oui, quoi)
+    if InCombatLockdown() then return false end
+    cacher[quoi == "rep" and "rep" or "xp"] = oui and true or false
+    for _, nom in ipairs(BARRES_JEU) do
+        local f = _G[nom]
+        if f and not accroches[nom] and f.HookScript then
+            accroches[nom] = true
+            f:HookScript("OnShow", function(self)
+                if not InCombatLockdown() and aCacher(nom, self) then
+                    cachees[nom] = true
+                    self:Hide()
+                end
+            end)
         end
     end
+    -- Les barres changent de conteneur (réputation suivie ou non) : on revoit.
+    local m = StatusTrackingBarManager
+    if not accroches.gestion and m and m.UpdateBarsShown and hooksecurefunc then
+        accroches.gestion = true
+        hooksecurefunc(m, "UpdateBarsShown", toutRegler)
+    end
+    toutRegler()
     return true
+end
+
+---------------------------------------------------------------------------
+-- Réputation suivie (« Afficher en barre d'XP ») : { nom, rang, reaction,
+-- min, max, valeur, absolu, id } ou nil. valeur entre min et max ; absolu
+-- ne fait que monter (sert à compter les gains).
+---------------------------------------------------------------------------
+
+function Jeu.factionSuivie()
+    local f
+    local d = C_Reputation and C_Reputation.GetWatchedFactionData and C_Reputation.GetWatchedFactionData()
+    if d and d.name then
+        f = { nom = d.name, reaction = d.reaction or 4, min = d.currentReactionThreshold or 0,
+              max = d.nextReactionThreshold or 0, valeur = d.currentStanding or 0, id = d.factionID }
+    elseif GetWatchedFactionInfo then
+        local nom, reaction, mn, mx, v, id = GetWatchedFactionInfo()
+        if not nom then return nil end
+        f = { nom = nom, reaction = reaction or 4, min = mn or 0, max = mx or 0, valeur = v or 0, id = id }
+    else
+        return nil
+    end
+    f.absolu = f.valeur
+    local id = f.id
+    -- Amitié : ses propres paliers et le nom de son rang.
+    local ami = id and C_GossipInfo and C_GossipInfo.GetFriendshipReputation
+        and C_GossipInfo.GetFriendshipReputation(id)
+    if ami and ami.friendshipFactionID and ami.friendshipFactionID > 0 then
+        f.rang = ami.reaction
+        f.min, f.max = ami.reactionThreshold or 0, ami.nextThreshold or 0
+        f.valeur, f.absolu = ami.standing or 0, ami.standing or 0
+    end
+    -- Parangon : un tour de la barre par coffre.
+    if id and C_Reputation and C_Reputation.IsFactionParagon and C_Reputation.IsFactionParagon(id)
+        and C_Reputation.GetFactionParagonInfo then
+        local v, seuil = C_Reputation.GetFactionParagonInfo(id)
+        if v and seuil and seuil > 0 then
+            f.parangon = true
+            f.min, f.max, f.valeur, f.absolu = 0, seuil, v % seuil, f.valeur + v
+        end
+    end
+    if not f.rang then f.rang = _G["FACTION_STANDING_LABEL" .. f.reaction] or "" end
+    return f
 end
 
 ---------------------------------------------------------------------------
