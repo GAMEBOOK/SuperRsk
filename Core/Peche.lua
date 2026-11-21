@@ -73,7 +73,7 @@ end
 -- Sans canne en main, la touche de pêche met la tenue de pêche (puis lance
 -- la ligne au prochain appui). Jamais Espace : sans canne, il sert à sauter.
 function Peche.sortirPossible()
-    return R("pecheActif") == true and R("pecheSortir") ~= false and touche() ~= "SPACE"
+    return R("pecheActif") == true and touche() ~= "SPACE"
 end
 
 -- Prend la touche ou la rend, selon la canne, le combat et l'état de la ligne.
@@ -133,11 +133,18 @@ end
 -- Le combat commence : la touche revient tout de suite à son rôle normal
 -- (sauter, par exemple). Rien ne se rebranche avant la fin du combat.
 function Peche.surCombat()
-    if Peche.tenueMise() then Peche.rangerTenue(true) end
+    if Peche.tenueMise() or ns.Jeu.cannePortee() then Peche.rangerTenue(true) end
     if not arme then return end
     arme = false
     etat = "repos"
     Peche.lier(nil, nil)
+end
+
+-- À cheval : on quitte le coin de pêche, l'équipement revient tout seul
+-- (l'appui suivant sur la touche ressortira la canne).
+function Peche.surMonture()
+    if ns.Jeu.enCombat() or not Peche.aRemettre() then return end
+    Peche.rangerTenue()
 end
 
 function Peche.surDeconnexion()
@@ -154,7 +161,7 @@ function Peche.demarrer()
     SuperGuideDB = SuperGuideDB or {}
     if R("pecheActif") == true and not SuperGuideDB.pecheAvis then
         SuperGuideDB.pecheAvis = true
-        ns.Jeu.message(L["Nouveau, Pêche en un bouton : canne en main, Espace lance la ligne et ferre le poisson. Choisis ta propre touche dans /sg > Pêche en un bouton : elle sortira aussi ta canne des sacs."])
+        ns.Jeu.message(L["Nouveau, Auto Fishing : canne en main, Espace lance la ligne et ferre le poisson. Choisis ta propre touche dans /sg > Auto Fishing : elle sortira aussi ta canne des sacs."])
     end
     Peche.rendreTout()
     Peche.maj()
@@ -320,10 +327,42 @@ function Peche.mettreTenue()
     jeu.message(L["Pêche : tenue de pêche mise (%d pièces). Rappuie pour remettre ton équipement."]:format(n))
 end
 
+-- Canne en main sans rien de retenu (équipement d'avant oublié) : les
+-- meilleures armes des sacs, choisies par Auto Equip. { [emplacement] = lien }.
+function Peche.armesDeSecours()
+    local E, jeu = ns.Equipement, ns.Jeu
+    local choix = {}
+    if not (E and E.ameliorations and jeu.objetsSacs) then return choix end
+    local poids, ctx = E.poidsJoueur(), E.contexte()
+    ctx.puissance = E.puissanceJoueur(poids)
+    local sansArme = function(case)
+        if case == 16 or case == 17 then return nil end
+        return jeu.objetPorte(case)
+    end
+    for _, p in ipairs(E.ameliorations(jeu.objetsSacs() or {}, sansArme, poids, ctx)) do
+        if p.emplacement == 16 or p.emplacement == 17 then choix[p.emplacement] = p.objet.lien end
+    end
+    return choix
+end
+
+local function secours()
+    local n = 0
+    for case, lien in pairs(Peche.armesDeSecours()) do
+        if ns.Jeu.mettre(lien, case) then n = n + 1 end
+    end
+    ns.Jeu.message(n > 0 and L["Pêche : ton arme d'avant est inconnue, Auto Equip a remis tes meilleures armes."]
+        or L["Pêche : aucune arme dans tes sacs pour remplacer la canne."])
+    return n > 0
+end
+
 -- Remet ce que tu portais. seulementArmes : en combat, les armes seulement,
--- le reste est gardé pour la fin du combat.
+-- le reste est gardé pour la fin du combat. Rien de retenu mais la canne en
+-- main : les meilleures armes des sacs.
 function Peche.rangerTenue(seulementArmes)
-    if not Peche.tenueMise() then return end
+    if not Peche.tenueMise() then
+        if ns.Jeu.cannePortee() then secours() end
+        return
+    end
     local avant, reste = SuperGuideCharDB.pecheTenue, {}
     for _, case in ipairs(trier(avant)) do
         local lien = avant[case]
@@ -337,6 +376,15 @@ function Peche.rangerTenue(seulementArmes)
         SuperGuideCharDB.pecheTenue = nil
         ns.Jeu.message(L["Pêche : ton équipement est remis."])
     end
+    -- Vérifié un peu après : la canne toujours en main (objet introuvable,
+    -- vendu, à la banque…), les meilleures armes des sacs prennent le relais.
+    ns.Jeu.plusTard(1, function()
+        if ns.Jeu.cannePortee() then
+            if Peche.tenueMise() then SuperGuideCharDB.pecheTenue[16], SuperGuideCharDB.pecheTenue[17] = nil, nil end
+            if Peche.tenueMise() and next(SuperGuideCharDB.pecheTenue) == nil then SuperGuideCharDB.pecheTenue = nil end
+            secours()
+        end
+    end)
 end
 
 -- En pêche : canne en main, ou tenue de pêche pas encore remise.
@@ -389,11 +437,16 @@ function Peche.porteNormal(porte)
     end
 end
 
-function Peche.basculerTenue()
-    if Peche.tenueMise() then Peche.rangerTenue() else Peche.mettreTenue() end
+-- Quelque chose à remettre : équipement retenu, ou canne en main.
+function Peche.aRemettre()
+    return Peche.tenueMise() or ns.Jeu.cannePortee() and true or false
 end
 
-local CLES = { pecheActif = true, pecheTouche = true, pecheSortir = true }
+function Peche.basculerTenue()
+    if Peche.aRemettre() then Peche.rangerTenue() else Peche.mettreTenue() end
+end
+
+local CLES = { pecheActif = true, pecheTouche = true }
 function Peche.appliquer(cle)
     if not CLES[cle] then return end
     if cle == "pecheTouche" and arme then Peche.lier(nil, nil) end

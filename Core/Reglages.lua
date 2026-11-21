@@ -139,14 +139,14 @@ Reglages.MODULES = {
               libelle = L["Sens de la liste"], info = L["Les nouvelles lignes s'ajoutent sous l'ancre (vers le bas) ou au-dessus (vers le haut, si la liste est en bas de l'écran)."] },
         } },
       } },
-    { nom = "poubelle", titre = L["Poubelle"], interrupteur = "butinPoubelle", deplacer = true,
+    { nom = "poubelle", titre = L["Poubelle (sacs pleins)"], interrupteur = "butinPoubelle", deplacer = true,
       apercu = function(oui) if ns.Poubelle and ns.Poubelle.apercu then ns.Poubelle.apercu(oui) end end,
       vitrine = function() if ns.Poubelle and ns.Poubelle.vitrine then return ns.Poubelle.vitrine() end end,
       desc = L["Pendant le ramassage, sacs pleins : une fenêtre propose l'objet gris qui vaut le moins, avec son prix chez le marchand et à l'hôtel des ventes (dernier scan d'Auctionator). Rien n'est jeté sans ton clic sur « Jeter »."],
       options = {
         { cle = "butinPoubelle", type = "case", libelle = L["Proposer de jeter le gris le moins cher quand les sacs sont pleins"] },
     } },
-    { nom = "marchand", titre = L["Marchand"], interrupteur = "marchandActif",
+    { nom = "marchand", titre = "Auto Sell & Repair", interrupteur = "marchandActif",
       desc = L["Chez un marchand, tes objets gris sont vendus et ton équipement réparé, sans clic. Maj enfoncé en ouvrant le marchand : rien ne se fait."],
       options = {
         { cle = "marchandActif", type = "case", libelle = L["Activer"] },
@@ -293,29 +293,24 @@ Reglages.MODULES = {
         { cle = "vhTop", type = "choix", valeurs = { 5, 10, 20 }, noms = { "5", "10", "20" },
           libelle = L["Joueurs dans le classement"] },
     } },
-    { nom = "peche", titre = L["Pêche en un bouton"], interrupteur = "pecheActif", deplacer = true,
-      boutons = { { texte = L["Tenue de pêche"], action = function() if ns.Peche then ns.Peche.basculerTenue() end end },
-                  { texte = L["Nouvelle session"], action = function()
+    { nom = "peche", titre = "Auto Fishing", interrupteur = "pecheActif", deplacer = true,
+      boutons = { { texte = L["Nouvelle session"], action = function()
                       if not ns.Peche then return end
                       ns.Peche.remettreAZero()
                       ns.Jeu.message(L["Pêche : nouvelle session."])
                   end } },
       apercu = function(oui) if ns.Peche and ns.Peche.apercu then ns.Peche.apercu(oui) end end,
       vitrine = function() if ns.Peche and ns.Peche.vitrine then return ns.Peche.vitrine() end end,
-      desc = L["Une seule touche pour pêcher : un appui lance la ligne, un appui quand le bouchon plonge ferre le poisson. Par défaut Espace, canne en main seulement. Choisis ta propre touche ci-dessous : sans canne en main, elle sortira aussi ta canne et ta tenue de pêche des sacs. La touche n'est qu'empruntée, hors combat ; rien ne change dans tes raccourcis. Le widget compte ta session : prises, valeur à l'hôtel des ventes, équipement et appâts."],
+      desc = L["Une seule touche pour tout : elle sort ta canne et ta tenue de pêche des sacs, pose l'appât, lance la ligne et ferre le poisson. Ton équipement revient tout seul quand tu montes à cheval ou qu'on t'attaque."],
       options = {
-        { cle = "pecheActif", type = "case", libelle = L["Pêcher avec une seule touche"],
-          info = L["Seulement canne à pêche en main droite. En combat, la touche reprend tout de suite son rôle normal."] },
-        { cle = "pecheTouche", type = "touche", libelle = L["Touche de pêche"],
-          info = L["Clic, puis appuie sur la touche voulue : une touche du clavier (avec Maj, Ctrl ou Alt si tu veux), la molette ou un bouton de souris du milieu ou des côtés. Canne en main, elle lance et ferre à la place de son rôle habituel. Clic droit : Espace."] },
-        { cle = "pecheSortir", type = "case", libelle = L["Sans canne en main, la touche de pêche met la tenue de pêche"],
-          info = L["Un appui sort ta meilleure canne (et tes pièces de pêche) des sacs, l'appui suivant lance la ligne. Pas avec Espace : sans canne, il sert à sauter."] },
-        { cle = "pecheAppat", type = "case", libelle = L["Poser l'appât tout seul quand il n'y en a plus"],
-          info = L["Plus d'appât sur la canne : la touche de pêche pose d'abord le meilleur appât de tes sacs que tu peux utiliser, l'appui suivant lance la ligne."] },
-        { cle = "pecheTenueTouche", type = "touche", doublon = "pecheTouche", libelle = L["Touche de la tenue de pêche"],
-          info = L["Un appui sort de tes sacs ta meilleure canne et tes pièces à bonus de pêche (chapeau, bottes, gants…) ; un second appui remet ton équipement. Attaqué : tes armes reviennent tout de suite, le reste à la fin du combat. Aussi dans Raccourcis > SuperRsk. Clic droit : aucune touche."] },
-        { cle = "pecheWidget", type = "case", libelle = L["Afficher le widget de pêche"],
-          info = L["Canne en main : prises et valeur de la session. Survol : chaque poisson avec son prix, ta compétence, ton équipement de pêche et tes appâts. Glisse-le où tu veux."] },
+        { cle = "pecheActif", type = "case", libelle = L["Activer Auto Fishing"],
+          info = L["La touche n'est qu'empruntée, hors combat : rien ne change dans tes raccourcis."] },
+        { cle = "pecheTouche", type = "touche", libelle = L["Ta touche de pêche"],
+          info = L["Clic, puis appuie sur la touche voulue (clavier, avec Maj, Ctrl ou Alt si tu veux, molette ou bouton de souris). Avec Espace, la canne doit déjà être en main : sans canne, Espace sert à sauter. Clic droit : Espace."] },
+        { cle = "pecheAppat", type = "case", libelle = L["Poser l'appât tout seul"],
+          info = L["Plus d'appât sur la canne : la touche pose d'abord le meilleur appât de tes sacs, l'appui suivant lance la ligne."] },
+        { cle = "pecheWidget", type = "case", libelle = L["Afficher la carte de pêche"],
+          info = L["Prises, valeur et temps de la session, et le bouton pour remettre ton équipement. Survol : le détail. Glisse-la où tu veux."] },
     } },
     { nom = "menage", titre = L["Ménage des objets de quête"], interrupteur = "menageActif",
       boutons = { { texte = L["Faire le ménage"], action = function() if ns.Menage then ns.Menage.ouvrir() end end } },
@@ -362,6 +357,28 @@ Reglages.MODULES = {
           info = L["Le brouillard volumétrique (volumeFog 0)."] },
     } },
 }
+
+-- Familles de modules : l'accueil et la barre latérale les rangent ainsi,
+-- dans cet ordre (les « Auto » ensemble, puis sacs, affichage, jeu, image).
+Reglages.FAMILLES = {
+    { cle = "auto", titre = L["Automatique"],
+      modules = { "peche", "autoEquip", "autoLoot", "marchand", "autoRangs", "autoTir" } },
+    { cle = "sacs", titre = L["Sacs et équipement"], modules = { "poubelle", "menage", "usure" } },
+    { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "vols", "vh" } },
+    { cle = "jeu", titre = L["Jeu et groupe"], modules = { "softInteract", "marqueurs", "swapGroupe", "spyPing" } },
+    { cle = "image", titre = L["Graphismes et ambiance"], modules = { "boostFPS", "meteo", "tsquid" } },
+}
+do
+    local rang, famille = {}, {}
+    for i, f in ipairs(Reglages.FAMILLES) do
+        for j, nom in ipairs(f.modules) do rang[nom], famille[nom] = i * 100 + j, f end
+    end
+    for i, m in ipairs(Reglages.MODULES) do
+        m.famille = famille[m.nom]
+        m.rang = rang[m.nom] or (900 + i)   -- un module oublié ici va à la fin
+    end
+    table.sort(Reglages.MODULES, function(a, b) return a.rang < b.rang end)
+end
 
 -- Un module en plusieurs cartes garde aussi la liste à plat de ses options.
 for _, m in ipairs(Reglages.MODULES) do

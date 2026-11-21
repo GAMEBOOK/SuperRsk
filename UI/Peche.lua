@@ -225,7 +225,7 @@ local function infobulle(self)
     end
 
     GameTooltip:AddLine(" ")
-    if Peche.tenueMise() then
+    if Peche.aRemettre() then
         GameTooltip:AddLine(L["Clic : remettre mon équipement."], 0.45, 0.48, 0.54)
     end
     GameTooltip:AddLine(L["Maj + clic droit : nouvelle session."], 0.45, 0.48, 0.54)
@@ -316,7 +316,7 @@ local function rafraichir()
         widget.bordTex:SetVertexColor(T.rgb("bordFort"))
     end
 
-    local bouton = apercu or Peche.tenueMise()
+    local bouton = apercu or Peche.aRemettre()
     widget.remettre:SetShown(bouton)
     widget:SetHeight(HAUTEUR + (bouton and BOUTON or 0))
 end
@@ -404,7 +404,7 @@ local function creerWidget()
     widget:SetScript("OnClick", function(self, bouton)
         if apercu then return end
         if bouton == "LeftButton" then
-            if Peche.tenueMise() then Peche.rangerTenue() end
+            if Peche.aRemettre() then Peche.rangerTenue() end
             return
         end
         if not IsShiftKeyDown() then return end
@@ -467,6 +467,13 @@ end
 -- Branchement
 ---------------------------------------------------------------------------
 
+local etaitMonte = false
+local function surMonte()
+    local m = IsMounted and IsMounted() or false
+    if m and not etaitMonte then Peche.surMonture() end
+    etaitMonte = m
+end
+
 local EVENEMENTS = {
     PLAYER_EQUIPMENT_CHANGED = function() Peche.surEquipement(); Peche.maj(); rafraichir() end,
     UNIT_INVENTORY_CHANGED = function(unite) if unite == "player" then Peche.maj() end end,
@@ -479,6 +486,9 @@ local EVENEMENTS = {
         rafraichir()
     end,
     PLAYER_LOGOUT = function() Peche.surDeconnexion() end,
+    -- Monté à cheval : l'équipement revient.
+    PLAYER_MOUNT_DISPLAY_CHANGED = function() surMonte() end,
+    UNIT_AURA = function(unite) if unite == "player" then surMonte() end end,
     SPELLS_CHANGED = function()
         appatMacro = nil
         majMacro()

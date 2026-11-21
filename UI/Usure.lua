@@ -30,7 +30,7 @@ local function infobulle(self)
         GameTooltip:AddDoubleLine(lien, p.pourcent .. " %", 1, 1, 1, r, g, b)
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L["Répare chez un marchand (le module Marchand le fait seul)."], 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L["Répare chez un marchand (le module Auto Sell & Repair le fait seul)."], 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
 end
 

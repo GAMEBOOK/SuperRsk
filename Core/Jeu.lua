@@ -601,7 +601,10 @@ function Jeu.mettre(lien, case)
     if InCombatLockdown() and not arme then return false end
     local f = (C_Item and C_Item.EquipItemByName) or EquipItemByName
     if not (f and lien) then return false end
-    f(lien, case)
+    -- Par son numéro : le lien complet contient le niveau du joueur, et ne
+    -- correspond plus à l'objet après un niveau gagné (le jeu l'ignore alors).
+    local id = type(lien) == "string" and tonumber(lien:match("item:(%d+)"))
+    f(id or lien, case)
     return true
 end
 

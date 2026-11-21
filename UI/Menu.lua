@@ -37,12 +37,13 @@ end
 ---------------------------------------------------------------------------
 
 local LARGEUR, HAUTEUR = 762, 480
-local ENTETE, LATERALE, MARGE = 46, 210, 18
+local ENTETE, LATERALE, MARGE = 54, 210, 18
 local W = LARGEUR - LATERALE - 2 * MARGE - 10   -- largeur utile du contenu
 local VITRINE = 100   -- hauteur de la bannière d'aperçu
 
 local T, C
 local cadre, defile, ascenseur, sousTitre
+local tournerLogo = function() end   -- tour de boussole (posé à la création)
 local nav, pages, actuelle = {}, {}, nil
 
 -- Question Oui / Non (fenêtre du jeu) ; sans elle, l'action directement.
@@ -151,61 +152,97 @@ local function resumeModule(m, actif)
 end
 
 -- Une ligne par module, tout tient sans défiler : case (allumer, couper),
--- nom, état ; un clic sur la ligne ouvre sa page, le survol la décrit.
+-- nom ; l'état n'apparaît que s'il y a quelque chose à dire (coupé, addon
+-- manquant). Un clic sur la ligne ouvre sa page, le survol la décrit.
+-- Une carte par famille, sur deux colonnes équilibrées.
 local LIGNE = 24
+local TITRE_FAMILLE = 28   -- intitulé en haut de chaque carte
+local ECART = 12
+
+local function ligneModule(p, carte, m, y, largeur, premiere)
+    local l = CreateFrame("Button", nil, carte)
+    l:SetSize(largeur - 8, LIGNE)
+    l:SetPoint("TOPLEFT", 4, -y)
+    local survol = l:CreateTexture(nil, "BACKGROUND")
+    survol:SetAllPoints()
+    survol:SetColorTexture(T.rgb("accent"))
+    survol:SetAlpha(0)
+    if not premiere then
+        local trait = l:CreateTexture(nil, "BORDER")
+        trait:SetColorTexture(T.rgb("bordFort"))
+        trait:SetAlpha(0.35)
+        trait:SetHeight(1)
+        trait:SetPoint("TOPLEFT", 8, 0)
+        trait:SetPoint("TOPRIGHT", -8, 0)
+    end
+    if m.interrupteur then
+        l.case = C.pour(l, { cle = m.interrupteur, type = "case", libelle = "" }, 20)
+        l.case:SetPoint("LEFT", 6, 0)
+        p.controles[#p.controles + 1] = l.case
+    end
+    local fleche = C.texte(l, "texte", "textePale")
+    fleche:SetPoint("RIGHT", -8, 0)
+    fleche:SetText("›")
+    l.resume = C.texte(l, "petit", "texteDoux")
+    l.resume:SetPoint("RIGHT", fleche, "LEFT", -6, 0)
+    l.resume:SetJustifyH("RIGHT")
+    l.titre = C.texte(l, "texte", "texte")
+    l.titre:SetPoint("LEFT", 32, 0)
+    l.titre:SetPoint("RIGHT", l.resume, "LEFT", -6, 0)
+    l.titre:SetWordWrap(false)
+    l.titre:SetText(m.titre)
+    l:SetScript("OnClick", function() Menu.ouvrir("module:" .. m.nom) end)
+    l:SetScript("OnEnter", function(self)
+        survol:SetAlpha(0.08)
+        fleche:SetTextColor(T.rgb("accent"))
+        if m.desc then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(m.titre)
+            GameTooltip:AddLine(m.desc, 1, 1, 1, true)
+            GameTooltip:AddLine(L["Clic : régler ce module."], 0.45, 0.48, 0.54)
+            GameTooltip:Show()
+        end
+    end)
+    l:SetScript("OnLeave", function()
+        survol:SetAlpha(0)
+        fleche:SetTextColor(T.rgb("textePale"))
+        GameTooltip:Hide()
+    end)
+    l.module = m
+    p.lignes[#p.lignes + 1] = l
+end
 
 function accueil.construire(p)
     p.y0 = enTete(p, L["Accueil"], L["Coche pour allumer ou couper un module, clique sur sa ligne pour le régler."])
     p.lignes, p.controles = {}, {}
-    p.liste = C.carte(p.cadre)
-    p.liste:SetSize(W, #ns.Reglages.MODULES * LIGNE + 8)
-    for i, m in ipairs(ns.Reglages.MODULES) do
-        local l = CreateFrame("Button", nil, p.liste)
-        l:SetSize(W - 8, LIGNE)
-        l:SetPoint("TOPLEFT", 4, -4 - (i - 1) * LIGNE)
-        local survol = l:CreateTexture(nil, "BACKGROUND")
-        survol:SetAllPoints()
-        survol:SetColorTexture(T.rgb("accent"))
-        survol:SetAlpha(0)
-        if i > 1 then
-            local trait = l:CreateTexture(nil, "BORDER")
-            trait:SetColorTexture(T.rgb("bordFort"))
-            trait:SetAlpha(0.5)
-            trait:SetHeight(1)
-            trait:SetPoint("TOPLEFT", 8, 0)
-            trait:SetPoint("TOPRIGHT", -8, 0)
+    p.liste = CreateFrame("Frame", nil, p.cadre)
+    -- Familles dans l'ordre des modules (les modules sans famille à la fin).
+    local familles, parNom = {}, {}
+    for _, m in ipairs(ns.Reglages.MODULES) do
+        local f = m.famille or { cle = "autres", titre = L["Autres"] }
+        if not parNom[f.cle] then
+            parNom[f.cle] = { titre = f.titre, modules = {} }
+            familles[#familles + 1] = parNom[f.cle]
         end
-        if m.interrupteur then
-            l.case = C.pour(l, { cle = m.interrupteur, type = "case", libelle = "" }, 20)
-            l.case:SetPoint("LEFT", 8, 0)
-            p.controles[#p.controles + 1] = l.case
-        end
-        l.titre = C.texte(l, "texte", "texte")
-        l.titre:SetPoint("LEFT", 36, 0)
-        l.titre:SetWidth(170)
-        l.titre:SetWordWrap(false)
-        l.titre:SetText(m.titre)
-        l.resume = C.texte(l, "petit", "texteDoux")
-        l.resume:SetPoint("LEFT", 212, 0)
-        l.resume:SetPoint("RIGHT", -70, 0)
-        l.resume:SetWordWrap(false)
-        local ouvrir = C.texte(l, "petit", "accent")
-        ouvrir:SetPoint("RIGHT", -10, 0)
-        ouvrir:SetText(L["Régler ›"])
-        l:SetScript("OnClick", function() Menu.ouvrir("module:" .. m.nom) end)
-        l:SetScript("OnEnter", function(self)
-            survol:SetAlpha(0.08)
-            if m.desc then
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(m.titre)
-                GameTooltip:AddLine(m.desc, 1, 1, 1, true)
-                GameTooltip:Show()
-            end
-        end)
-        l:SetScript("OnLeave", function() survol:SetAlpha(0); GameTooltip:Hide() end)
-        l.module = m
-        p.lignes[i] = l
+        table.insert(parNom[f.cle].modules, m)
     end
+    local largeur = math.floor((W - ECART) / 2)
+    local hauts = { 0, 0 }
+    for _, f in ipairs(familles) do
+        local col = hauts[2] < hauts[1] and 2 or 1
+        local carte = C.carte(p.liste)
+        local h = TITRE_FAMILLE + #f.modules * LIGNE + 6
+        carte:SetSize(largeur, h)
+        carte:SetPoint("TOPLEFT", (col - 1) * (largeur + ECART), -hauts[col])
+        local t = C.texte(carte, "libelle", "accent")
+        t:SetText(f.titre:upper())
+        t:SetPoint("TOPLEFT", 12, -11)
+        for i, m in ipairs(f.modules) do
+            ligneModule(p, carte, m, TITRE_FAMILLE + (i - 1) * LIGNE, largeur, i == 1)
+        end
+        hauts[col] = hauts[col] + h + ECART
+    end
+    p.liste:SetSize(W, math.max(hauts[1], hauts[2]) - ECART)
 end
 
 function accueil.maj(p)
@@ -214,6 +251,8 @@ function accueil.maj(p)
         if l.case then l.case.maj() end
         local actif = not m.interrupteur or ns.Reglages.get(m.interrupteur) ~= false
         local texte, couleur = resumeModule(m, actif)
+        -- « Actif » se voit à la case : on n'écrit que ce qui sort de l'ordinaire.
+        if couleur == "vert" then texte = "" end
         l.resume:SetText(texte)
         l.resume:SetTextColor(T.rgb(couleur))
         l.titre:SetTextColor(T.rgb(actif and "texte" or "texteDoux"))
@@ -260,8 +299,9 @@ local function cartesOptions(p, y, categories)
     return y
 end
 
-function reglages.construire(p)
-    local y = enTete(p, L["Réglages"], L["Tout s'applique tout de suite et reste enregistré."])
+-- Options générales (minicarte, positions, sauvegarde), en tête de la
+-- page « Général » : plus de section Réglages à part pour si peu.
+local function optionsGenerales(p, y)
     y = cartesOptions(p, y, ns.Reglages.CATEGORIES)
     local function carte(titre, hauteurContenu, remplir)
         y = carteOptions(p, y, titre, hauteurContenu, remplir)
@@ -289,7 +329,7 @@ function reglages.construire(p)
         local exp = C.bouton(c, L["Exporter"], "accent", Menu.exporterReglages, 100)
         exp:SetPoint("RIGHT", imp, "LEFT", -8, 0)
     end)
-    p.hauteur = -y
+    return y
 end
 
 function reglages.maj(p)
@@ -531,7 +571,8 @@ local function version()
 end
 
 function apropos.construire(p)
-    local y = enTete(p, "SuperRsk", L["Version %s · la boîte à outils maison de SuperRsk et ses potes."]:format(version()))
+    local y = enTete(p, L["Options"], L["Version %s · la boîte à outils maison de SuperRsk et ses potes."]:format(version()))
+    y = optionsGenerales(p, y)
     local function bloc(titre, lignes)
         local t = intitule(p.cadre, titre)
         t:SetPoint("TOPLEFT", 0, y)
@@ -558,7 +599,7 @@ function apropos.construire(p)
     p.hauteur = -y
 end
 
-function apropos.maj(p) return p.hauteur end
+function apropos.maj(p) return reglages.maj(p) end
 
 ---------------------------------------------------------------------------
 -- Cadre, navigation, défilement
@@ -566,9 +607,8 @@ function apropos.maj(p) return p.hauteur end
 
 local SECTIONS = {
     { nom = "accueil", libelle = "Accueil", icone = "accueil", page = accueil },
-    { nom = "reglages", libelle = "Réglages", icone = "reglages", page = reglages },
     { nom = "modules", libelle = "Module", icone = "liste", groupe = true },
-    { nom = "apropos", libelle = "À propos", icone = "info", page = apropos },
+    { nom = "apropos", libelle = "Options", icone = "reglages", page = apropos },
 }
 
 local function majAscenseur()
@@ -702,16 +742,16 @@ local function creer()
     entete:RegisterForDrag("LeftButton")
     entete:SetScript("OnDragStart", function() cadre:StartMoving() end)
     entete:SetScript("OnDragStop", function() cadre:StopMovingOrSizing() end)
-    local logo = entete:CreateTexture(nil, "ARTWORK")
-    logo:SetTexture(T.icone("boussole"))
-    logo:SetSize(20, 20)
-    logo:SetPoint("LEFT", MARGE, 0)
-    logo:SetVertexColor(T.rgb("accent"))
-    local titre = C.texte(entete, "grand", "texte")
-    titre:SetPoint("LEFT", logo, "RIGHT", 8, 0)
-    titre:SetText("SuperRsk")
+    -- La marque, comme partout : boussole vivante (un tour à l'ouverture,
+    -- au survol et de temps en temps), SuperRsk, All in One QoL.
+    local b = C.marque(entete, entete, 12)
+    b.logo:SetPoint("LEFT", MARGE, 0)
+    tournerLogo = b.tourner
+    local point = C.texte(entete, "texte", "textePale")
+    point:SetPoint("LEFT", b.qol, "RIGHT", 10, 1)
+    point:SetText("·")
     sousTitre = C.texte(entete, "texte", "textePale")
-    sousTitre:SetPoint("LEFT", titre, "RIGHT", 10, -1)
+    sousTitre:SetPoint("LEFT", point, "RIGHT", 10, 0)
     local fermer = CreateFrame("Button", nil, entete)
     fermer:SetSize(24, 24)
     fermer:SetPoint("RIGHT", -12, 0)
@@ -887,7 +927,7 @@ function Menu.rafraichir(garder)
     majAscenseur()
 end
 
-local ALIAS = {}
+local ALIAS = { reglages = { "apropos" } }   -- l'ancienne section Réglages vit dans Options
 
 function Menu.ouvrir(nom, onglet)
     -- Jamais de fenêtre de réglages en combat.
@@ -912,6 +952,7 @@ function Menu.ouvrir(nom, onglet)
     sousTitre:SetText(L[p.def.libelle])
     majNav()
     if not cadre:IsShown() or cadre:GetScript("OnUpdate") then
+        tournerLogo()
         cadre:SetAlpha(0)
         cadre:Show()
         fondu(true)

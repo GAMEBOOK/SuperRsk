@@ -154,6 +154,7 @@ local function demarrer()
     lancer(ns.Menage.creer)
     ns.Reglages.ecouter(ns.Peche.appliquerInterface)
 
+    lancer(ns.Bienvenue.demarrer)
     lancer(ns.Usure.creer)
     lancer(ns.Poubelle.creer)
     for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
@@ -268,6 +269,8 @@ SlashCmdList.SUPERGUIDE = function(arg)
         ns.Menage.basculer()
     elseif arg == "menage ?" or arg == "ménage ?" then
         for _, ligne in ipairs(ns.Menage.expliquer()) do ns.Jeu.message(ligne) end
+    elseif arg == "bienvenue" or arg == "welcome" then
+        ns.Bienvenue.ouvrir()
     elseif arg == "photo" then
         ns.Photo.basculer()
     elseif arg == "dr" then

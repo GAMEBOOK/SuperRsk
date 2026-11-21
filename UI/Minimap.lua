@@ -84,6 +84,8 @@ function Minimap_.creer()
     bord:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
     bord:SetSize(53, 53)
     bord:SetPoint("TOPLEFT")
+    -- Au survol : la boussole fait un tour, une lueur s'allume.
+    ns.Controles.animerLogo(icone, bouton, 34, false)
 
     bouton:SetScript("OnClick", function(_, b)
         ns.Menu.basculer()

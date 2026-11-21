@@ -96,6 +96,127 @@ function Controles.aideJeter(fait, confirme)
     end
 end
 
+-- Logo vivant : une lueur douce qui respire derrière la boussole, et un
+-- tour de boussole à la demande (ouverture du menu, survol). « survol » :
+-- le cadre qui déclenche le tour au passage de la souris. « respire » :
+-- false = lueur seulement au survol (bouton de la minicarte, discret).
+-- « periode » : toutes les N secondes environ, le logo bouge tout seul.
+-- Rend la fonction qui fait tourner le logo.
+function Controles.animerLogo(logo, survol, taille, respire, periode)
+    local parent = logo:GetParent()
+    if type(parent) ~= "table" or not logo.CreateAnimationGroup then return function() end end
+    local lueur = parent:CreateTexture(nil, "BACKGROUND", nil, 7)
+    -- Halo rond et doux, fait maison (la texture du jeu essayée avant
+    -- s'affichait en carré sur ce client).
+    lueur:SetTexture(T().MEDIA .. "Lueur")
+    lueur:SetBlendMode("ADD")
+    lueur:SetSize(taille, taille)
+    lueur:SetPoint("CENTER", logo, "CENTER")
+    lueur:SetVertexColor(T().rgb("accent"))
+    lueur:SetAlpha(respire == false and 0 or 0.35)
+
+    -- Respiration : de 0.2 à 0.6 et retour, en boucle (très peu coûteux).
+    local souffle = lueur:CreateAnimationGroup()
+    souffle:SetLooping("BOUNCE")
+    local a = souffle:CreateAnimation("Alpha")
+    a:SetFromAlpha(0.2)
+    a:SetToAlpha(0.6)
+    a:SetDuration(2.2)
+    a:SetSmoothing("IN_OUT")
+    if respire ~= false then souffle:Play() end
+
+    -- Un tour de boussole, avec un petit éclat de la lueur.
+    local tour = logo:CreateAnimationGroup()
+    local r = tour:CreateAnimation("Rotation")
+    r:SetDegrees(-360)
+    r:SetDuration(0.9)
+    r:SetSmoothing("OUT")
+    if r.SetOrigin then r:SetOrigin("CENTER", 0, 0) end
+    local eclat = lueur:CreateAnimationGroup()
+    local e1 = eclat:CreateAnimation("Alpha")
+    e1:SetFromAlpha(respire == false and 0 or 0.35)
+    e1:SetToAlpha(0.9)
+    e1:SetDuration(0.25)
+    e1:SetOrder(1)
+    local e2 = eclat:CreateAnimation("Alpha")
+    e2:SetFromAlpha(0.9)
+    e2:SetToAlpha(respire == false and 0.5 or 0.35)
+    e2:SetDuration(0.7)
+    e2:SetOrder(2)
+    e2:SetSmoothing("OUT")
+
+    -- Hésitation d'aiguille : la boussole cherche le nord (gauche, droite,
+    -- puis se pose), pour varier avec le tour complet.
+    local hesite = logo:CreateAnimationGroup()
+    for i, deg in ipairs({ 28, -50, 34, -12 }) do
+        local h = hesite:CreateAnimation("Rotation")
+        h:SetDegrees(deg)
+        h:SetDuration(i == 1 and 0.22 or 0.3)
+        h:SetOrder(i)
+        h:SetSmoothing("IN_OUT")
+        if h.SetOrigin then h:SetOrigin("CENTER", 0, 0) end
+    end
+
+    local function tourner()
+        if tour:IsPlaying() or hesite:IsPlaying() then return end
+        tour:Play()
+        if respire ~= false then souffle:Stop() end
+        eclat:Play()
+    end
+
+    -- Vivant tant qu'il est à l'écran : de temps en temps un tour ou une
+    -- hésitation (minuteur sur un petit cadre enfant : rien ne tourne quand
+    -- le logo est caché).
+    if periode then
+        local minuteur, prochain, n = CreateFrame("Frame", nil, parent), nil, 0
+        minuteur:SetScript("OnUpdate", function()
+            local t = GetTime()
+            if not prochain then prochain = t + periode return end
+            if t < prochain or not logo:IsVisible() then return end
+            n = n + 1
+            if n % 3 == 0 then tourner()
+            elseif not (tour:IsPlaying() or hesite:IsPlaying()) then hesite:Play() end
+            prochain = t + periode + (n % 2) * 2
+        end)
+    end
+    eclat:SetScript("OnFinished", function()
+        if respire ~= false then souffle:Play() end
+    end)
+    if survol then
+        survol:HookScript("OnEnter", function()
+            tourner()
+            if respire == false then lueur:SetAlpha(0.5) end
+        end)
+        survol:HookScript("OnLeave", function()
+            if respire == false then lueur:SetAlpha(0) end
+        end)
+    end
+    return tourner
+end
+
+-- Bandeau de la marque, le même partout (menu, bienvenue) : la boussole
+-- vivante, « SuperRsk » et « All in One QoL ». Rend { logo, marque, qol,
+-- tourner } ; « survol » : le cadre qui fait tourner le logo au passage.
+function Controles.marque(parent, survol, periode)
+    local b = {}
+    b.logo = parent:CreateTexture(nil, "ARTWORK")
+    b.logo:SetTexture(T().icone("boussole"))
+    b.logo:SetSize(26, 26)
+    b.logo:SetVertexColor(T().rgb("accent"))
+    b.tourner = Controles.animerLogo(b.logo, survol, 70, nil, periode or 8)
+    b.marque = parent:CreateFontString(nil, "OVERLAY")
+    b.marque:SetFont(T().MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 24, "")
+    b.marque:SetTextColor(T().rgb("texte"))
+    b.marque:SetPoint("LEFT", b.logo, "RIGHT", 10, 0)
+    b.marque:SetText("SuperRsk")
+    b.qol = parent:CreateFontString(nil, "OVERLAY")
+    b.qol:SetFont(T().MEDIA .. "Polices\\Archivo-Medium.ttf", 13, "")
+    b.qol:SetTextColor(T().rgb("accent"))
+    b.qol:SetPoint("LEFT", b.marque, "RIGHT", 10, -1)
+    b.qol:SetText("All in One QoL")
+    return b
+end
+
 -- Carte : fond légèrement plus clair, liseré.
 function Controles.carte(parent)
     local c = CreateFrame("Frame", nil, parent)
