@@ -149,6 +149,11 @@ function BarreRep.maj()
     if not cadre then return end
     local f = ns.Jeu.factionSuivie()
     compter(f)
+    -- Mode photo sans faction suivie : une faction d'exemple.
+    if not f and BarreRep.photo then
+        f = { nom = L["Aube d'argent"], reaction = 6, min = 9000, max = 21000, valeur = 17350,
+              rang = _G.FACTION_STANDING_LABEL6 or "Honored" }
+    end
     if not apercu and (not R("barreRep") or not f) then cadre:Hide(); return end
 
     local fr = GetLocale() == "frFR"

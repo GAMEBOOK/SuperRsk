@@ -18,8 +18,10 @@ local PAGES = {
     { "presentation", "", "" },
     { "peche", "Auto Fishing", "One key casts, hooks, equips your pole and puts the lure on." },
     { "autoEquip", "Auto Equip", "Never miss an upgrade: the best gear for your class and talents, in one click." },
+    { "tenues", "Auto Sets", "The right gear at the right moment: mount, gathering, bosses. Then your gear comes back." },
     { "menage", "Quest Item Cleanup", "Quest items you no longer need, gone in one click." },
     { "barreXP", "XP Bar", "Your XP bar, with the XP of your finished and ongoing quests." },
+    { "barreRep", "Reputation Bar", "Your faction, your standing, your rep per hour." },
     { "autoLoot", "Auto Loot", "Instant loot, with a clean loot list." },
     { "poubelle", "Junk", "Bags full? The cheapest grey item goes to the trash." },
     { "marchand", "Merchant", "Greys sold and gear repaired at every merchant." },
@@ -57,13 +59,14 @@ local function rendre()
         if ns.Deplacement and ns.Deplacement.replacer and a.cle then ns.Deplacement.replacer(a.cle) end
     end
     if a.module and a.module.apercu then pcall(a.module.apercu, false) end
+    if ns.BarreRep then ns.BarreRep.photo = false end
 end
 
 -- Page de présentation (image principale de la page CurseForge) : le logo
 -- en grand avec sa lueur, le nom, l'accroche et les modules phares.
 local presentation
-local PHARES = { "Auto Fishing", "Auto Equip", "Auto Loot", "Auto Sell & Repair",
-                 "Quest Item Cleanup", "XP Bar", "Junk", "Boost FPS" }
+local PHARES = { "Auto Fishing", "Auto Sets", "Auto Equip", "Auto Loot", "Auto Sell & Repair",
+                 "Quest Item Cleanup", "XP Bar", "Junk" }
 local function creerPresentation()
     local Th = T()
     local f = CreateFrame("Frame", nil, UIParent)
@@ -132,6 +135,10 @@ local SPECIAUX = {
     menage = function(oui)
         if ns.Menage and ns.Menage.exemple then return ns.Menage.exemple(oui) end
     end,
+    tenues = function(oui)
+        if ns.TenuesUI and ns.TenuesUI.exemple then return ns.TenuesUI.exemple(oui) end
+    end,
+
 }
 
 local function montrer(i)
@@ -144,6 +151,8 @@ local function montrer(i)
     local m = ns.Reglages.module(nom)
     local f, cle
     local special = SPECIAUX[nom]
+    -- Barre de réputation sans faction suivie : une faction d'exemple.
+    if ns.BarreRep then ns.BarreRep.photo = (nom == "barreRep") end
     if special then
         f = special(true)
     elseif m and m.vitrine then

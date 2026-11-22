@@ -504,6 +504,7 @@ end
 -- Met la tenue voulue (ou remet ton équipement). force : réappliquer même
 -- si c'est déjà la tenue mise (pièces changées dans la fenêtre).
 function Tenues.evaluer(force)
+    if Tenues.demo then return false end   -- mode photo : tenues d'exemple, rien ne s'équipe
     local voulue
     if R("tenuesActif") then voulue = Tenues.voulue(Tenues.contexte()) end
     local e = etat()

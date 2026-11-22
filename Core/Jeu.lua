@@ -465,13 +465,36 @@ end
 -- Marchand ------------------------------------------------------------------
 
 -- Objets gris des sacs qui se vendent : { { sac, case, prix (total), nombre } }.
+-- Outils de métier : jamais proposés à la vente ni à la poubelle
+-- (pioche, couteau à dépecer, marteau, clé, bâtonnets runiques, cannes à
+-- pêche, pierre philosophale, briquet...).
+Jeu.OUTILS = {
+    [2901] = true, [7005] = true, [5956] = true, [6219] = true, [10498] = true,
+    [6218] = true, [6339] = true, [11130] = true, [11145] = true, [16207] = true,
+    [9149] = true, [4471] = true, [19901] = true, [12709] = true,
+    [6256] = true, [6365] = true, [6366] = true, [6367] = true, [12225] = true,
+    [19022] = true, [19970] = true, [25978] = true, [44050] = true, [40772] = true,
+    [20815] = true, [20824] = true, [22461] = true, [22462] = true, [22463] = true,
+    [23821] = true,
+}
+function Jeu.outilMetier(lien)
+    if type(lien) ~= "string" then return false end
+    local id = tonumber(lien:match("item:(%d+)"))
+    if id and Jeu.OUTILS[id] then return true end
+    if not (C_Item and C_Item.GetItemInfoInstant) then return false end
+    local _, _, _, _, _, classe, sous = C_Item.GetItemInfoInstant(lien)
+    if classe == 19 then return true end                 -- « Métier » (outils modernes)
+    if classe == 2 and sous == 20 then return true end   -- canne à pêche
+    return false
+end
+
 function Jeu.objetsGris()
     local liste = {}
     if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
     for sac = 0, 4 do
         for case = 1, C_Container.GetContainerNumSlots(sac) or 0 do
             local info = C_Container.GetContainerItemInfo(sac, case)
-            if info and info.quality == 0 and not info.hasNoValue then
+            if info and info.quality == 0 and not info.hasNoValue and not Jeu.outilMetier(info.hyperlink) then
                 local prix = info.hyperlink and select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
                 if (prix or 0) > 0 then
                     local n = info.stackCount or 1
@@ -516,7 +539,7 @@ function Jeu.objetsMediocres()
         local normal = (famille or 0) == 0
         for case = 1, normal and (C_Container.GetContainerNumSlots(sac) or 0) or 0 do
             local info = C_Container.GetContainerItemInfo(sac, case)
-            if info and info.quality == 0 and info.hyperlink then
+            if info and info.quality == 0 and info.hyperlink and not Jeu.outilMetier(info.hyperlink) then
                 local prix = info.hasNoValue and 0 or (select(11, C_Item.GetItemInfo(info.hyperlink)) or 0)
                 local n = info.stackCount or 1
                 local hv = Jeu.prixHV(info.hyperlink)
@@ -541,7 +564,8 @@ function Jeu.objetsCommuns()
         local normal = (famille or 0) == 0
         for case = 1, normal and (C_Container.GetContainerNumSlots(sac) or 0) or 0 do
             local info = C_Container.GetContainerItemInfo(sac, case)
-            if info and info.quality == 1 and info.hyperlink and not info.hasNoValue and not info.isLocked then
+            if info and info.quality == 1 and info.hyperlink and not info.hasNoValue and not info.isLocked
+               and not Jeu.outilMetier(info.hyperlink) then
                 local classe = select(6, C_Item.GetItemInfoInstant(info.hyperlink))
                 local prix = select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
                 if classe and not GARDER[classe] and prix > 0 then
@@ -1365,18 +1389,31 @@ function Jeu.retirer(case)
     return false
 end
 
+-- Texte lisible, ou nil : sur Forever, le jeu cache certaines valeurs aux
+-- addons (« secrètes » : ni comparables, ni utilisables comme clé).
+function Jeu.lisible(v)
+    if v == nil or (issecretvalue and issecretvalue(v)) then return nil end
+    if type(v) ~= "string" then return nil end
+    return v
+end
+
 -- Nom de la cible (nil sans cible) ; joueur ennemi ciblé ; zone et sous-zone.
 function Jeu.cibleNom()
     if not (UnitExists and UnitExists("target")) then return nil end
-    return UnitName("target")
+    local ok, nom = pcall(UnitName, "target")
+    return ok and Jeu.lisible(nom) or nil
 end
 function Jeu.cibleJoueurEnnemi()
     if not (UnitExists and UnitExists("target")) then return false end
-    return (UnitIsPlayer("target") and UnitIsEnemy and UnitIsEnemy("player", "target")) and true or false
+    local ok, oui = pcall(function()
+        return UnitIsPlayer("target") and UnitIsEnemy and UnitIsEnemy("player", "target")
+    end)
+    if not ok or (issecretvalue and issecretvalue(oui)) then return false end
+    return oui and true or false
 end
 function Jeu.zones()
-    local z = GetRealZoneText and GetRealZoneText() or nil
-    local s = GetSubZoneText and GetSubZoneText() or nil
+    local z = Jeu.lisible(GetRealZoneText and GetRealZoneText() or nil)
+    local s = Jeu.lisible(GetSubZoneText and GetSubZoneText() or nil)
     if s == "" then s = nil end
     return z, s
 end

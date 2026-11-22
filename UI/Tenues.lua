@@ -200,9 +200,9 @@ local function dessinerCase(b, t)
         b.icone:SetTexture(icone(p.id))
         b.icone:SetDesaturated(false)
         b.icone:SetAlpha(1)
-        local a = ns.Jeu.possede(p.id)
+        local a = Tenues.demo or ns.Jeu.possede(p.id)
         b.bord:SetVertexColor(Th.rgb(not a and "rouge" or p.epingle and "orange" or "accent"))
-        local bonus = bonusDe(t, p.id)
+        local bonus = p.bonus or bonusDe(t, p.id)
         b.bonus:SetText(bonus and bonus > 1 and ("+" .. bonus) or "")
     else
         b.icone:SetTexture(fondCase(b.case))
@@ -250,7 +250,7 @@ dessiner = function()
             or L["Choisis les pièces : clic sur un emplacement, ou « Prendre ce que je porte »."]) .. "|r"
     end
     local manque = 0
-    for _, p in pairs(t.pieces or {}) do if not ns.Jeu.possede(p.id) then manque = manque + 1 end end
+    for _, p in pairs(t.pieces or {}) do if not (Tenues.demo or ns.Jeu.possede(p.id)) then manque = manque + 1 end end
     if manque > 0 then lignes[#lignes + 1] = "|cffff5a5f" .. L["%d pièce(s) introuvable(s) : ni sur toi ni dans tes sacs."]:format(manque) .. "|r" end
     cadre.resume:SetText(table.concat(lignes, "\n"))
 end
@@ -498,7 +498,9 @@ local function creer()
     cadre.gauche:SetSize(LISTE_L, HAUTEUR - ENTETE - 30)
     local mes = C().texte(cadre.gauche, "petit", "textePale")
     mes:SetPoint("TOPLEFT", 2, -4)
-    mes:SetText(L["MES TENUES · la première qui convient est mise"])
+    mes:SetWidth(LISTE_L - 4)
+    mes:SetWordWrap(false)
+    mes:SetText(L["MES TENUES · par priorité"])
     cadre.lignes = {}
     for i = 1, VISIBLES do cadre.lignes[i] = creerLigne(i) end
     cadre.vide = C().texte(cadre.gauche, "texte", "texteDoux")
@@ -702,6 +704,55 @@ function TenuesUI.ouvrir()
     dessiner()
 end
 
+-- Mode photo : la vraie fenêtre, remplie de tenues d'exemple. Tes tenues
+-- sont mises de côté le temps de la photo et rien ne s'équipe (Tenues.demo).
+local gardees
+function TenuesUI.exemple(oui)
+    SuperGuideCharDB = SuperGuideCharDB or {}
+    if not oui then
+        if gardees then
+            SuperGuideCharDB.tenues, SuperGuideCharDB.tenuesEtat = gardees.tenues, gardees.etat
+            gardees = nil
+        end
+        Tenues.demo = false
+        choisie = nil
+        if cadre then
+            cadre:Hide()
+            if ns.Deplacement then ns.Deplacement.replacer("tenues") end
+        end
+        return cadre
+    end
+    if not cadre then creer() end
+    gardees = gardees or { tenues = SuperGuideCharDB.tenues, etat = SuperGuideCharDB.tenuesEtat }
+    Tenues.demo = true
+    -- Pièces de ton personnage (icônes sûres), plus la Cape d'écailles d'Onyxia.
+    local feu = {}
+    local res = { [1] = 12, [3] = 10, [5] = 15, [7] = 12, [10] = 8, [8] = 10 }
+    for case, b in pairs(res) do
+        local id = ns.Jeu.idPiece(case)
+        if id then feu[case] = { id = id, lien = ns.Jeu.lienPiece(case), bonus = b } end
+    end
+    feu[15] = { id = 15138, lien = "item:15138", bonus = 15 }
+    SuperGuideCharDB.tenues = {
+        { id = 1, type = "monture", nom = L["Monture"], quand = "monture", actif = true,
+          pieces = { [13] = { id = 11122, lien = "item:11122", bonus = 3 } } },
+        { id = 2, type = "boss", nom = "Ragnaros", quand = "cible", cible = "Ragnaros", actif = true, pieces = feu },
+        { id = 3, type = "herbes", nom = L["Herboristerie"], quand = "herbes", actif = true,
+          pieces = { [10] = { id = 7349, lien = "item:7349", bonus = 5 } } },
+        { id = 4, type = "zone", nom = "Stratholme", quand = "zone", zone = "Stratholme", actif = true,
+          pieces = { [14] = { id = 12846, lien = "item:12846" } } },
+        { id = 5, type = "depecage", nom = L["Dépeçage"], quand = "depecage", actif = true,
+          pieces = { [16] = { id = 12709, lien = "item:12709", bonus = 10 } } },
+        { id = 6, type = "ville", nom = L["En ville"], quand = "ville", actif = false,
+          pieces = { [4] = { id = 6833, lien = "item:6833" }, [19] = { id = 15196, lien = "item:15196" } } },
+    }
+    SuperGuideCharDB.tenuesEtat = { active = 1 }
+    choisie, decalage = 2, 0
+    cadre:Show()
+    dessiner()
+    return cadre
+end
+
 function TenuesUI.basculer()
     if cadre and cadre:IsShown() then cadre:Hide() else TenuesUI.ouvrir() end
 end
@@ -754,7 +805,7 @@ local function surInfobulle(tip)
         if not (UnitIsDead and UnitIsDead(unite)) then return end
         for i = 2, tip:NumLines() or 0 do
             local l = _G[tip:GetName() .. "TextLeft" .. i]
-            local txt = l and l:GetText()
+            local txt = l and ns.Jeu.lisible(l:GetText())
             if txt then
                 if txt == UNIT_SKINNABLE_LEATHER then return recolteVue("depecage") end
                 if txt == UNIT_SKINNABLE_HERB then return recolteVue("herbes") end
@@ -764,13 +815,13 @@ local function surInfobulle(tip)
         return
     end
     local l1 = _G[tip:GetName() .. "TextLeft1"]
-    local nom = l1 and l1:GetText()
+    local nom = l1 and ns.Jeu.lisible(l1:GetText())
     if not nom then return end
     local connu = noeuds()[nom]
     if connu then return recolteVue(connu) end
     for i = 2, math.min(tip:NumLines() or 0, 4) do
         local l = _G[tip:GetName() .. "TextLeft" .. i]
-        local txt = l and l:GetText()
+        local txt = l and ns.Jeu.lisible(l:GetText())
         if txt then
             txt = txt:lower()
             for cat, mots in pairs(MOTS_NOEUD) do
@@ -890,7 +941,7 @@ local function actualiser()
     relectureEnAttente = true
     ns.Jeu.plusTard(2, function()
         relectureEnAttente = false
-        if ns.Jeu.enCombat() then return end
+        if ns.Jeu.enCombat() or Tenues.demo then return end
         relire()
         Tenues.evaluer()
         dessiner()
@@ -983,10 +1034,13 @@ f:SetScript("OnEvent", function(_, e, a1, a2, a3, a4)
     elseif e == "UNIT_SPELLCAST_SENT" then
         -- Récolte lancée : le nom de la plante ou du filon est appris.
         local cat = a1 == "player" and categorieSort(a4)
-        if cat and type(a2) == "string" and a2 ~= "" then noeuds()[a2] = cat end
+        local cible = ns.Jeu.lisible(a2)
+        if cat and cible and cible ~= "" then noeuds()[cible] = cat end
     elseif e == "PLAYER_SOFT_INTERACT_CHANGED" then
+        -- Le nom de l'objet visé peut être secret : rien à faire alors.
         local ok, nom = pcall(UnitName, "softinteract")
-        local cat = ok and nom and noeuds()[nom]
+        nom = ok and ns.Jeu.lisible(nom) or nil
+        local cat = nom and noeuds()[nom]
         if cat then recolteVue(cat) end
     elseif e == "PLAYER_REGEN_DISABLED" then
         if cadre and cadre:IsShown() then cadre:Hide(); rouvrir = true end
