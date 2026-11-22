@@ -178,6 +178,7 @@ local function demarrer()
     ns.Reglages.ecouter(ns.Peche.appliquerInterface)
 
     lancer(ns.Bienvenue.demarrer)
+    lancer(ns.Nouveautes.demarrer)
     lancer(ns.Usure.creer)
     lancer(ns.Poubelle.creer)
     for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
@@ -309,6 +310,8 @@ SlashCmdList.SUPERGUIDE = function(arg)
         ns.TenuesUI.parNom(arg:match("^%S+%s+(.+)$"))
     elseif arg == "bienvenue" or arg == "welcome" then
         ns.Bienvenue.ouvrir()
+    elseif arg == "nouveautes" or arg == "nouveautés" or arg == "news" then
+        ns.Nouveautes.ouvrir()
     elseif arg == "photo" then
         ns.Photo.basculer()
     elseif arg == "dr" then

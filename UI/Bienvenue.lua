@@ -273,6 +273,8 @@ local function creer()
         a .. "/sg|r   " .. L["le menu : chaque module, allumé ou coupé, et ses réglages"],
         a .. L["Boussole"] .. "|r   " .. L["le bouton de la minicarte ouvre le même menu"],
         a .. L["Déplacer"] .. "|r   " .. L["place barres et fenêtres où tu veux (en haut du menu)"],
+        a .. L["Cadenas"] .. "|r   " .. L["verrouille tout, Maj enfoncée pour bouger quand même"],
+        a .. "/sg sets|r   " .. L["tes tenues Auto Sets"],
         a .. "/sg bienvenue|r   " .. L["revoir cette fenêtre"],
     }, "\n"))
     local fin = C().texte(p4, "texte", "accent")

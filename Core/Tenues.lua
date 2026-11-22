@@ -501,6 +501,23 @@ local function dire(texte)
     if R("tenuesMessage") ~= false then ns.Jeu.message(texte) end
 end
 
+-- Remise de ton équipement, vérifiée : une pièce n'est oubliée que quand
+-- elle est vraiment revenue. Le jeu peut refuser un échange (objet encore
+-- verrouillé par l'échange d'avant, sacs pleins) : on réessaie chaque
+-- seconde, ESSAIS fois au plus, puis on le dit.
+Tenues.ESSAIS = 6
+local essais, prochain, remise = {}, 0, false
+
+local function idDe(lien) return type(lien) == "string" and tonumber(lien:match("item:(%d+)")) or nil end
+
+-- Reste-t-il une pièce à remettre (emplacement hors de la tenue voulue) ?
+local function aRemettre(base, pieces)
+    for case in pairs(base or {}) do
+        if not pieces[case] then return true end
+    end
+    return false
+end
+
 -- Met la tenue voulue (ou remet ton équipement). force : réappliquer même
 -- si c'est déjà la tenue mise (pièces changées dans la fenêtre).
 function Tenues.evaluer(force)
@@ -509,21 +526,45 @@ function Tenues.evaluer(force)
     if R("tenuesActif") then voulue = Tenues.voulue(Tenues.contexte()) end
     local e = etat()
     local cible = voulue and voulue.id
-    if cible == e.active and not force then return false end
+    local pieces = voulue and voulue.pieces or {}
+    local maintenant = GetTime and GetTime() or 0
+    if cible == e.active and not force then
+        -- Même tenue : seulement s'il reste une pièce à remettre, une fois par seconde.
+        if not aRemettre(e.base, pieces) or maintenant < prochain then return false end
+    end
     if Tenues.bloque() then Tenues.enAttente = true; return false end
     Tenues.enAttente = false
     local jeu = ns.Jeu
     local base = e.base or {}
-    local pieces = voulue and voulue.pieces or {}
+    local precedente = e.active and e.active ~= cible and Tenues.parId(e.active)
     -- 1. Emplacements que la nouvelle tenue ne touche pas : ce qu'ils avaient.
-    local remis = 0
+    local remis, rates = 0, {}
     for case, lien in pairs(base) do
         if not pieces[case] then
-            local ok
-            if lien then ok = jeu.idPiece(case) == tonumber(lien:match("item:(%d+)")) or jeu.mettre(lien, case)
-            else ok = jeu.idPiece(case) == nil or jeu.retirer(case) end
-            if ok then base[case] = nil; remis = remis + 1 end
+            local actuel, voulu = jeu.idPiece(case), idDe(lien)
+            local piece = precedente and precedente.pieces and precedente.pieces[case]
+            if actuel == voulu then
+                base[case], essais[case] = nil, nil
+                remis = remis + 1
+            elseif piece and actuel ~= piece.id and not essais[case] then
+                -- Tu as changé cette pièce toi-même pendant la tenue : on n'y touche pas.
+                base[case] = nil
+            elseif voulu and not jeu.possede(voulu) then
+                base[case], essais[case] = nil, nil   -- vendu, jeté, en banque : plus rien à remettre
+            elseif (essais[case] or 0) >= Tenues.ESSAIS then
+                base[case], essais[case] = nil, nil
+                rates[#rates + 1] = lien or case
+            else
+                essais[case] = (essais[case] or 0) + 1
+                if voulu then jeu.mettre(lien, case) else jeu.retirer(case) end
+            end
         end
+    end
+    prochain = maintenant + 1
+    if #rates > 0 then
+        local noms = {}
+        for _, r in ipairs(rates) do noms[#noms + 1] = type(r) == "string" and r or L["un emplacement"] end
+        ns.Jeu.message(L["Auto Sets : impossible de remettre %s (sacs pleins ?)."]:format(table.concat(noms, ", ")))
     end
     -- 2. Pièces de la tenue : ce qui était là avant est retenu une fois.
     local mises = 0
@@ -538,10 +579,13 @@ function Tenues.evaluer(force)
     local avant = e.active
     e.active = cible
     e.base = next(base) and base or nil
+    if not voulue and avant then remise = true end
+    if voulue then remise = false end
     if voulue and cible ~= avant and mises > 0 then
         dire(L["Auto Sets : %s mise (%d pièces)."]:format(voulue.nom, mises))
-    elseif not voulue and avant and remis > 0 then
-        dire(L["Auto Sets : ton équipement est remis."])
+    elseif remise and not aRemettre(e.base, pieces) then
+        remise = false
+        if remis > 0 then dire(L["Auto Sets : ton équipement est remis."]) end
     end
     return true
 end
