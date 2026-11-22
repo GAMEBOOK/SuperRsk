@@ -36,6 +36,22 @@ function Poubelle.candidat(liste)
     return choix
 end
 
+-- Tous les objets proposables, du premier choix au dernier (même ordre que
+-- candidat) : les flèches de la fenêtre passent de l'un à l'autre.
+function Poubelle.classement(liste)
+    local r = {}
+    for _, o in ipairs(liste or {}) do r[#r + 1] = { o = o, v = Poubelle.valeur(o) } end
+    table.sort(r, function(a, b)
+        if a.v ~= b.v then return a.v < b.v end
+        if (a.o.commun or false) ~= (b.o.commun or false) then return not a.o.commun end
+        if a.o.nombre ~= b.o.nombre then return a.o.nombre < b.o.nombre end
+        if a.o.sac ~= b.o.sac then return (a.o.sac or 0) < (b.o.sac or 0) end
+        return (a.o.case or 0) < (b.o.case or 0)
+    end)
+    for i, x in ipairs(r) do r[i] = x.o end
+    return r
+end
+
 -- « Marchand : 12 pc · HV : 1 pa » (HV : « pas de scan » sans prix).
 function Poubelle.textePrix(c)
     local jeu = ns.Jeu
@@ -64,10 +80,16 @@ function Poubelle.surPlein()
         end
         tous = gardes
     end
-    local c = Poubelle.candidat(tous)
+    local choix = Poubelle.classement(tous)
+    local c = choix[1]
     local n = ns.Menage and R("menageActif") ~= false and ns.Menage.nbSurs() or 0
-    if n > 0 and not (c and Poubelle.valeur(c) == 0) then c = { menage = n } end
+    if n > 0 and not (c and Poubelle.valeur(c) == 0) then
+        c = { menage = n }
+        table.insert(choix, 1, c)
+    end
     if c then
+        -- Les autres choix possibles, pour les flèches ‹ ›.
+        c.choix = choix
         if Poubelle.proposer then Poubelle.proposer(c) end
         return c
     end

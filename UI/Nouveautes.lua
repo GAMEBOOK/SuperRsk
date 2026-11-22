@@ -24,6 +24,8 @@ end
 
 -- { version, nom, texte, cle (réglage à cocher, facultatif), voir (facultatif) }
 Nouveautes.LISTE = {
+    { version = "1.0.20", nom = L["Poubelle : choisis l'objet"], cle = "butinPoubelle",
+      texte = L["Sacs pleins : pas celui-là ? Les flèches ‹ › proposent un autre objet, du moins cher au plus cher."] },
     { version = "1.0.19", nom = L["Auto Sets : ton équipement revient"],
       texte = L["Quand la condition s'arrête, chaque pièce revient, vérifiée. Ce que tu changes toi-même pendant une tenue est respecté."] },
     { version = "1.0.18", nom = L["Outils de métier protégés"],

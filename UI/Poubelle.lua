@@ -7,16 +7,20 @@ local ADDON, ns = ...
 local Poubelle = ns.Poubelle
 local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
-local cadre, courant
+local cadre, courant, choix, rang
 Poubelle.DUREE = 20
 
 local function fermer()
-    courant = nil
+    courant, choix, rang = nil, nil, nil
     if cadre then cadre:Hide() end
 end
 
 local function afficher(c)
     courant = c
+    local n = choix and #choix or 1
+    cadre.prec:SetShown(n > 1)
+    cadre.suiv:SetShown(n > 1)
+    cadre.compte:SetText(n > 1 and ("%d/%d"):format(rang, n) or "")
     if c.menage then
         -- Pas de gris : on propose le ménage des objets de quête finis.
         cadre.titre:SetText(L["Sacs pleins : des objets de quête ne servent plus"])
@@ -37,10 +41,11 @@ local function afficher(c)
     -- Largeur au plus juste : icône + texte le plus long + boutons, sans
     -- descendre sous la largeur du titre.
     local texte = math.max(cadre.nom:GetStringWidth() or 0, cadre.valeur:GetStringWidth() or 0)
-    local l = math.max((cadre.titre:GetStringWidth() or 0) + 20, 46 + texte + 12 + 118)
-    cadre:SetWidth(math.min(440, math.ceil(l)))
-    cadre.nom:SetWidth(cadre:GetWidth() - 46 - 124)
-    cadre.valeur:SetWidth(cadre:GetWidth() - 46 - 124)
+    local boutons = n > 1 and 178 or 118
+    local l = math.max((cadre.titre:GetStringWidth() or 0) + 20 + (n > 1 and 40 or 0), 46 + texte + 12 + boutons)
+    cadre:SetWidth(math.min(480, math.ceil(l)))
+    cadre.nom:SetWidth(cadre:GetWidth() - 46 - boutons - 6)
+    cadre.valeur:SetWidth(cadre:GetWidth() - 46 - boutons - 6)
     cadre.jusqua = (GetTime and GetTime() or 0) + Poubelle.DUREE
     cadre:Show()
 end
@@ -48,11 +53,23 @@ end
 -- Passe par la file d'attente des fenêtres : une seule question à la fois.
 function Poubelle.proposer(c)
     if not cadre then return end
-    ns.File.demander("poubelle", function() afficher(c) end)
+    ns.File.demander("poubelle", function()
+        choix, rang = c.choix, 1
+        if not choix or #choix == 0 then choix = { c } end
+        afficher(choix[1])
+    end)
+end
+
+-- Flèches : un autre objet de la liste (le délai repart à zéro).
+local function changer(sens)
+    if not choix or #choix < 2 then return end
+    rang = (rang - 1 + sens) % #choix + 1
+    afficher(choix[rang])
 end
 
 -- Aperçu (page du module) : la fenêtre avec un exemple, sans bouton actif.
 local EXEMPLE = { lien = "|cff9d9d9d[Os brisé]|r", icone = "Interface\\Icons\\INV_Misc_Bone_01", prix = 3, hv = 12, nombre = 2 }
+local EXEMPLE2 = { lien = "|cff9d9d9d[Croc ébréché]|r", icone = "Interface\\Icons\\INV_Misc_Bone_08", prix = 7, hv = 20, nombre = 1 }
 local enApercu = false
 
 function Poubelle.vitrine() return cadre, "poubelle" end
@@ -60,6 +77,7 @@ function Poubelle.vitrine() return cadre, "poubelle" end
 function Poubelle.apercu(oui)
     if oui then
         enApercu = true
+        choix, rang = { EXEMPLE, EXEMPLE2 }, 1
         afficher(EXEMPLE)
         cadre.jusqua = false   -- pas de fermeture automatique pendant l'aperçu
     else
@@ -110,6 +128,27 @@ function Poubelle.creer()
     end, 80)
     oui:SetPoint("RIGHT", non, "LEFT", -6, 0)
     cadre.oui = oui
+    -- ‹ 2/5 › : choisir un autre objet que celui proposé.
+    local suiv = C.bouton(cadre, "›", "texte", function() changer(1) end, 22)
+    suiv:SetPoint("RIGHT", oui, "LEFT", -8, 0)
+    local compte = C.texte(cadre, "petit", "texteDoux")
+    compte:SetPoint("BOTTOM", suiv, "TOP", -14, 3)
+    local prec = C.bouton(cadre, "‹", "texte", function() changer(-1) end, 22)
+    prec:SetPoint("RIGHT", suiv, "LEFT", -4, 0)
+    cadre.prec, cadre.suiv, cadre.compte = prec, suiv, compte
+    C.infobulle(suiv, L["Objet suivant"], L["Pas celui-là ? Les flèches proposent un autre objet, du moins cher au plus cher."])
+    C.infobulle(prec, L["Objet précédent"], L["Pas celui-là ? Les flèches proposent un autre objet, du moins cher au plus cher."])
+    -- Survol de l'icône : l'info-bulle de l'objet.
+    local survol = CreateFrame("Frame", nil, cadre)
+    survol:SetAllPoints(cadre.icone)
+    survol:EnableMouse(true)
+    survol:SetScript("OnEnter", function(self)
+        if not (courant and courant.sac and courant.case) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        if GameTooltip.SetBagItem then GameTooltip:SetBagItem(courant.sac, courant.case) end
+        GameTooltip:Show()
+    end)
+    survol:SetScript("OnLeave", function() GameTooltip:Hide() end)
     C.infobulle(oui, L["Jeter"], L["Met l'objet dans ta main : clique ensuite dans le vide puis sur Oui, le jeu le détruit (seule façon permise par le jeu)."])
     cadre:SetScript("OnUpdate", function(self)
         if self.jusqua and (GetTime and GetTime() or 0) > self.jusqua then fermer() end
