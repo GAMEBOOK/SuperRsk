@@ -552,10 +552,17 @@ function Jeu.objetsMediocres()
 end
 
 -- Sans gris : les objets blancs qu'on peut sacrifier, même format.
--- Jamais : consommables (nourriture, potions), sacs, réactifs, munitions,
--- carquois, objets de quête, clés, ni ce qui ne se vend pas (pierre de
--- foyer, objets spéciaux).
-local GARDER = { [0] = true, [1] = true, [5] = true, [6] = true, [11] = true, [12] = true, [13] = true }
+-- Seulement des armes, des armures et des objets divers sans usage : jamais
+-- les matériaux d'artisanat (cuir, étoffes, minerais, herbes), consommables,
+-- recettes, gemmes, sacs, munitions, objets de quête, clés, montures ou
+-- mascottes, ni ce qui ne se vend pas, ni les outils de métier.
+local JETABLE = { [2] = true, [4] = true, [15] = true }
+local DIVERS_GARDE = { [2] = true, [5] = true }   -- divers : mascottes, montures
+function Jeu.blancJetable(classe, sous)
+    if not JETABLE[classe] then return false end
+    if classe == 15 and DIVERS_GARDE[sous] then return false end
+    return true
+end
 function Jeu.objetsCommuns()
     local liste = {}
     if not (C_Container and C_Container.GetContainerNumSlots) then return liste end
@@ -566,9 +573,9 @@ function Jeu.objetsCommuns()
             local info = C_Container.GetContainerItemInfo(sac, case)
             if info and info.quality == 1 and info.hyperlink and not info.hasNoValue and not info.isLocked
                and not Jeu.outilMetier(info.hyperlink) then
-                local classe = select(6, C_Item.GetItemInfoInstant(info.hyperlink))
+                local _, _, _, _, _, classe, sous = C_Item.GetItemInfoInstant(info.hyperlink)
                 local prix = select(11, C_Item.GetItemInfo(info.hyperlink)) or 0
-                if classe and not GARDER[classe] and prix > 0 then
+                if classe and Jeu.blancJetable(classe, sous) and prix > 0 then
                     local n = info.stackCount or 1
                     local hv = Jeu.prixHV(info.hyperlink)
                     liste[#liste + 1] = { sac = sac, case = case, lien = info.hyperlink, icone = info.iconFileID,
@@ -1231,6 +1238,76 @@ local CASES_TYPE = {
 }
 Jeu.CASES_TYPE = CASES_TYPE
 
+-- Textes du jeu dans la langue du client (SuperRsk marche dans toutes les
+-- langues) : le morceau le plus long d'une chaîne globale du jeu, sans ses
+-- %d / %s (« %c%d to All Resistances » → « to all resistances »).
+function Jeu.litteral(g)
+    if type(g) ~= "string" then return nil end
+    local mieux = ""
+    for morceau in (g:gsub("%%%d?%$?[%a]", "\1")):gmatch("[^\1]+") do
+        morceau = morceau:gsub("^[%s%p]+", ""):gsub("[%s%p]+$", "")
+        if #morceau > #mieux then mieux = morceau end
+    end
+    return #mieux >= 3 and mieux:lower() or nil
+end
+
+-- Débuts de ligne « Requiert … » dans la langue du jeu (pas des bonus).
+local requis
+local function debutsRequis()
+    if requis then return requis end
+    requis = { "requi", "niveau" }
+    for _, nom in ipairs({ "ITEM_MIN_SKILL", "ITEM_MIN_LEVEL", "ITEM_REQ_SKILL", "ITEM_REQ_REPUTATION" }) do
+        local g = _G[nom]
+        local d = type(g) == "string" and g:match("^([^%%]+)")
+        d = d and d:gsub("%s+$", ""):lower()
+        if d and #d >= 3 then requis[#requis + 1] = d end
+    end
+    return requis
+end
+
+-- Noms d'un métier donnés par le jeu, dans sa langue : par sa ligne de
+-- compétence, son sort, et tes propres métiers.
+local LIGNES_METIER = { herbes = 182, minage = 186, depecage = 393, forge = 164, cuir = 165, couture = 197,
+                        alchimie = 171, ingenierie = 202, enchantement = 333, cuisine = 185, secourisme = 129 }
+local SORTS_METIER = { herbes = 2366, minage = 2575, depecage = 8613, forge = 2018, cuir = 2108, couture = 3908,
+                       alchimie = 2259, ingenierie = 4036, enchantement = 7411, cuisine = 2550, secourisme = 3273 }
+function Jeu.nomsMetier(cle)
+    local l = {}
+    local ligne, sort = LIGNES_METIER[cle], SORTS_METIER[cle]
+    if ligne and C_TradeSkillUI and C_TradeSkillUI.GetTradeSkillDisplayName then
+        local ok, n = pcall(C_TradeSkillUI.GetTradeSkillDisplayName, ligne)
+        if ok and type(n) == "string" and n ~= "" then l[#l + 1] = n end
+    end
+    if sort then
+        local f = (C_Spell and C_Spell.GetSpellName) or (GetSpellInfo and function(i) return (GetSpellInfo(i)) end)
+        local ok, n = pcall(f or function() end, sort)
+        if ok and type(n) == "string" and n ~= "" then l[#l + 1] = n end
+    end
+    if ligne and GetProfessions and GetProfessionInfo then
+        for _, p in ipairs({ GetProfessions() }) do
+            local ok, nom, _, _, _, _, _, id = pcall(GetProfessionInfo, p)
+            if ok and id == ligne and type(nom) == "string" then l[#l + 1] = nom end
+        end
+    end
+    return l
+end
+
+-- « Résistance au feu » etc. dans la langue du jeu (école 2 à 6), et
+-- « toutes les résistances ».
+function Jeu.nomsResistance(ecole)
+    local l = {}
+    local n = _G["RESISTANCE" .. ecole .. "_NAME"]
+    if type(n) == "string" and n ~= "" then l[#l + 1] = n end
+    local tout = Jeu.litteral(_G.ITEM_RESIST_ALL)
+    if tout then l[#l + 1] = tout end
+    return l
+end
+
+-- Enchantement posé sur l'objet (numéro dans le lien), nil sans.
+function Jeu.enchantDe(lien)
+    return type(lien) == "string" and tonumber(lien:match("item:%d+:(%d+)")) or nil
+end
+
 -- Texte des lignes 2 et suivantes de l'info-bulle de scan, en minuscules.
 -- Les lignes « Requiert … » (métier ou niveau demandé) ne sont pas des bonus.
 local function lignesScan(remplir)
@@ -1244,9 +1321,11 @@ local function lignesScan(remplir)
             if type(txt) == "string" and txt ~= "" then
                 txt = txt:lower()
                 -- Ni « Requiert … », ni le texte d'ambiance entre guillemets.
-                if not (txt:find("^requi") or txt:find("^niveau") or txt:find('^"') or txt:find("^«")) then
-                    l[#l + 1] = txt
+                local garder = not (txt:find('^"') or txt:find("^«") or txt:find("^„") or txt:find("^“"))
+                for _, d in ipairs(debutsRequis()) do
+                    if garder and txt:sub(1, #d) == d then garder = false end
                 end
+                if garder then l[#l + 1] = txt end
             end
         end
     end

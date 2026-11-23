@@ -270,13 +270,7 @@ end
 local function nouvelle(ancre)
     local entrees = {}
     local metiers = ns.Jeu.metiers()
-    local function connu(ty)
-        for _, nom in ipairs(metiers) do
-            for _, m in ipairs(ty.mots) do
-                if type(m) == "string" and nom:lower() == m then return nom end
-            end
-        end
-    end
+    local function connu(ty) return Tenues.connu(metiers, ty) end
     for _, ty in ipairs(Tenues.TYPES) do
         local metier = (ty.recolte or ty.metier) and connu(ty) or nil
         if not (ty.recolte or ty.metier) or metier then
@@ -795,8 +789,11 @@ local function recolteVue(cat)
     Tenues.evaluer()
 end
 
--- Mots du métier dans les info-bulles (« Herboristerie », « Requiert Minage »).
-local MOTS_NOEUD = { herbes = { "herboristerie", "herbalism" }, minage = { "minage", "mining" } }
+-- Mots du métier dans les info-bulles (« Herboristerie », « Requiert Minage »),
+-- dans la langue du jeu (Tenues.motsType).
+local function motsNoeud()
+    return { herbes = Tenues.motsType(Tenues.type("herbes")), minage = Tenues.motsType(Tenues.type("minage")) }
+end
 
 local function surInfobulle(tip)
     if not R("tenuesActif") then return end
@@ -824,9 +821,9 @@ local function surInfobulle(tip)
         local txt = l and ns.Jeu.lisible(l:GetText())
         if txt then
             txt = txt:lower()
-            for cat, mots in pairs(MOTS_NOEUD) do
+            for cat, mots in pairs(motsNoeud()) do
                 for _, m in ipairs(mots) do
-                    if txt:find(m, 1, true) then
+                    if type(m) == "string" and txt:find(m, 1, true) then
                         noeuds()[nom] = cat
                         return recolteVue(cat)
                     end
@@ -1003,7 +1000,18 @@ function TenuesUI.parNom(nom)
     ns.Jeu.message(L["Auto Sets : aucune tenue nommée « %s »."]:format(nom))
 end
 
+-- Connexion finie (équipement et sacs remplis) : Auto Sets peut décider.
+-- D'abord les pièces de tenue restées sur toi, puis la tenue voulue.
+local function pret()
+    if Tenues.pret then return end
+    Tenues.pret = true
+    pcall(Tenues.orphelins)
+    pcall(Tenues.evaluer)
+end
+
 function TenuesUI.creer()
+    Tenues.pret = false
+    ns.Jeu.plusTard(10, pret)   -- au cas où l'arrivée en jeu serait passée avant
     creerProp()
     TenuesUI.nommerTouches()
     for _, e in ipairs(TenuesUI.EVENEMENTS) do inscrire(e) end
@@ -1020,6 +1028,7 @@ end
 
 f:SetScript("OnEvent", function(_, e, a1, a2, a3, a4)
     if e == "PLAYER_ENTERING_WORLD" then
+        ns.Jeu.plusTard(3, pret)
         ns.Jeu.plusTard(5, actualiser)
     elseif e == "BAG_UPDATE_DELAYED" or e == "PLAYER_EQUIPMENT_CHANGED" then
         actualiser()

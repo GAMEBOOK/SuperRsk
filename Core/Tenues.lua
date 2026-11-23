@@ -26,17 +26,29 @@ local function R(cle) return ns.Reglages.get(cle) end
 -- Catégories : ce qu'on cherche et quand la tenue se met par défaut.
 ---------------------------------------------------------------------------
 
+-- Objets et enchantements reconnus par leur numéro, dans toutes les langues :
+-- { id = objet, valeur } ou { enchant = numéro, valeur }.
+local MONTURE_IDS = {
+    { id = 11122, valeur = 3 },      -- Carotte au bout d'un bâton
+    { id = 25653, valeur = 10 },     -- Cravache
+    { id = 32863, valeur = 10 },     -- Fouet de Brise-ciel
+    { enchant = 464, valeur = 4 },   -- Éperons en mithril
+    { enchant = 930, valeur = 2 },   -- Gants : monte
+}
+
 local MONTURE = {
     "vitesse de votre monture", "vitesse de la monture", "vitesse des montures", "vitesse de monture",
     "vitesse en monture", "vitesse de monte", "compétence de monte",
     "mount speed", "mounted movement speed", "mounted speed", "riding skill",
+    "reittiertempo", "reitgeschwindigkeit", "velocidad de montura", "velocidad con montura",
+    "скорость передвижения верхом", "скорость верховой езды", "velocidade montado", "velocità in sella",
     { "éperons en mithril", seul = true }, { "mithril spurs", seul = true },
 }
 
 -- recolte : métier de récolte (condition au survol) ; metier : la tenue se
 -- met quand la fenêtre de ce métier est ouverte.
 Tenues.TYPES = {
-    { cle = "monture", nom = L["Monture"], quand = "monture", mots = MONTURE,
+    { cle = "monture", nom = L["Monture"], quand = "monture", mots = MONTURE, ids = MONTURE_IDS,
       aide = L["Carotte au bout d'un bâton, éperons, gants de monte : en selle, plus vite."] },
     { cle = "herbes", nom = L["Herboristerie"], quand = "herbes", recolte = true,
       mots = { "herboristerie", "herbalism" }, aide = L["Au survol d'une plante."] },
@@ -46,7 +58,9 @@ Tenues.TYPES = {
       mots = { "dépeçage", "skinning" }, aide = L["Au survol d'un corps à dépecer."] },
     { cle = "nage", nom = L["Nage"], quand = "nage",
       mots = { "vitesse de nage", "swim speed", "respirer sous l'eau", "respiration aquatique",
-               "water breathing", "underwater breathing" }, aide = L["Dans l'eau."] },
+               "water breathing", "underwater breathing", "schwimmgeschwindigkeit", "unter wasser atmen",
+               "velocidad de nado", "respirar bajo el agua", "скорость плавания", "дышать под водой",
+               "velocidade de natação", "velocità di nuoto" }, aide = L["Dans l'eau."] },
     { cle = "forge", nom = L["Forge"], quand = "metier", metier = true, mots = { "forge", "blacksmithing" } },
     { cle = "cuir", nom = L["Travail du cuir"], quand = "metier", metier = true, mots = { "travail du cuir", "leatherworking" } },
     { cle = "couture", nom = L["Couture"], quand = "metier", metier = true, mots = { "couture", "tailoring" } },
@@ -57,19 +71,19 @@ Tenues.TYPES = {
     { cle = "secourisme", nom = L["Secourisme"], quand = "metier", metier = true, mots = { "secourisme", "first aid" } },
     -- Résistances : pour un boss ou une zone (Cœur du Magma, Onyxia…).
     -- Pas de création proposée : beaucoup d'objets en ont un peu.
-    { cle = "feu", nom = L["Résistance au feu"], quand = "manuel", sansProposer = true,
+    { cle = "feu", nom = L["Résistance au feu"], quand = "manuel", sansProposer = true, ecole = 2,
       mots = { "résistance au feu", "fire resistance", "toutes les résistances", "all resistances" },
       aide = L["Choisis « Quand je cible… » ou « Dans une zone… » (Ragnaros, Cœur du Magma)."] },
-    { cle = "nature", nom = L["Résistance à la nature"], quand = "manuel", sansProposer = true,
+    { cle = "nature", nom = L["Résistance à la nature"], quand = "manuel", sansProposer = true, ecole = 3,
       mots = { "résistance à la nature", "nature resistance", "toutes les résistances", "all resistances" },
       aide = L["Choisis « Quand je cible… » ou « Dans une zone… »."] },
-    { cle = "givre", nom = L["Résistance au givre"], quand = "manuel", sansProposer = true,
+    { cle = "givre", nom = L["Résistance au givre"], quand = "manuel", sansProposer = true, ecole = 4,
       mots = { "résistance au givre", "frost resistance", "toutes les résistances", "all resistances" },
       aide = L["Choisis « Quand je cible… » ou « Dans une zone… »."] },
-    { cle = "ombre", nom = L["Résistance à l'ombre"], quand = "manuel", sansProposer = true,
+    { cle = "ombre", nom = L["Résistance à l'ombre"], quand = "manuel", sansProposer = true, ecole = 5,
       mots = { "résistance à l'ombre", "shadow resistance", "toutes les résistances", "all resistances" },
       aide = L["Choisis « Quand je cible… » ou « Dans une zone… »."] },
-    { cle = "arcanes", nom = L["Résistance aux arcanes"], quand = "manuel", sansProposer = true,
+    { cle = "arcanes", nom = L["Résistance aux arcanes"], quand = "manuel", sansProposer = true, ecole = 6,
       mots = { "résistance aux arcanes", "arcane resistance", "toutes les résistances", "all resistances" },
       aide = L["Choisis « Quand je cible… » ou « Dans une zone… »."] },
     { cle = "boss", nom = L["Contre un boss"], quand = "cible",
@@ -87,6 +101,49 @@ Tenues.TYPES = {
 local PAR_CLE = {}
 for _, t in ipairs(Tenues.TYPES) do PAR_CLE[t.cle] = t end
 function Tenues.type(cle) return PAR_CLE[cle] end
+
+-- Noms des métiers dans les langues des clients (en plus de ceux que le jeu
+-- donne lui-même, voir Tenues.motsType) : de, es, ru, pt, it, ko, zh. En russe
+-- avec la majuscule : le jeu ne met pas le cyrillique en minuscules.
+local METIERS = {
+    herbes = { "kräuterkunde", "herboristería", "Травничество", "herborismo", "erbalismo", "약초채집", "草药学", "草藥學" },
+    minage = { "bergbau", "minería", "Горное дело", "mineração", "estrazione", "채광", "采矿", "採礦" },
+    depecage = { "kürschnerei", "desuello", "Снятие шкур", "esfolamento", "scuoiatura", "무두질", "剥皮", "剝皮" },
+    forge = { "schmiedekunst", "herrería", "Кузнечное дело", "ferraria", "forgiatura", "대장기술", "锻造", "鍛造" },
+    cuir = { "lederverarbeitung", "peletería", "Кожевничество", "couraria", "conciatura", "가죽세공", "制皮", "製皮" },
+    couture = { "schneiderei", "sastrería", "Портняжное дело", "alfaiataria", "sartoria", "재봉술", "裁缝", "裁縫" },
+    alchimie = { "alchimie", "alquimia", "Алхимия", "alchimia", "연금술", "炼金术", "鍊金術" },
+    ingenierie = { "ingenieurskunst", "ingeniería", "Инженерное дело", "engenharia", "ingegneria", "기계공학", "工程学", "工程學" },
+    enchantement = { "verzauberkunst", "encantamiento", "Наложение чар", "encantamento", "incantamento", "마법부여", "附魔" },
+    cuisine = { "kochkunst", "cocina", "Кулинария", "culinária", "cucina", "요리", "烹饪", "烹飪" },
+    secourisme = { "erste hilfe", "primeros auxilios", "Первая помощь", "primeiros socorros", "primo soccorso", "응급치료", "急救" },
+}
+
+-- Tous les mots d'une catégorie : les nôtres, les traductions, et ce que le
+-- jeu donne dans sa langue (métiers, résistances). Gardé une fois trouvé.
+local locaux = {}
+function Tenues.motsType(ty)
+    if not ty then return {} end
+    if locaux[ty.cle] then return locaux[ty.cle] end
+    local l, vu, duJeu = {}, {}, false
+    local function ajouter(m)
+        if type(m) == "table" then l[#l + 1] = m; return end
+        if type(m) ~= "string" then return end
+        m = m:lower()
+        if m ~= "" and not vu[m] then vu[m] = true; l[#l + 1] = m end
+    end
+    for _, m in ipairs(ty.mots or {}) do ajouter(m) end
+    for _, m in ipairs(METIERS[ty.cle] or {}) do ajouter(m) end
+    local jeu = ns.Jeu
+    if (ty.recolte or ty.metier) and jeu and jeu.nomsMetier then
+        for _, n in ipairs(jeu.nomsMetier(ty.cle)) do ajouter(n); duJeu = true end
+    end
+    if ty.ecole and jeu and jeu.nomsResistance then
+        for _, n in ipairs(jeu.nomsResistance(ty.ecole)) do ajouter(n); duJeu = true end
+    end
+    if duJeu or not (ty.recolte or ty.metier or ty.ecole) then locaux[ty.cle] = l end
+    return l
+end
 
 -- Conditions, dans l'ordre du choix « Quand ».
 Tenues.CONDITIONS = {
@@ -156,8 +213,10 @@ end
 function Tenues.mots(t)
     local ty = PAR_CLE[t.type]
     local l = {}
-    for _, m in ipairs(ty and ty.mots or {}) do l[#l + 1] = m end
+    for _, m in ipairs(Tenues.motsType(ty)) do l[#l + 1] = m end
     if t.metier then l[#l + 1] = t.metier:lower() end
+    -- Objets reconnus par leur numéro (toutes langues).
+    for _, x in ipairs(ty and ty.ids or {}) do l[#l + 1] = x end
     return l
 end
 
@@ -176,14 +235,28 @@ local function contient(l, v) for _, x in ipairs(l) do if x == v then return tru
 -- Bonus de chaque objet pour ces mots ; objets = Jeu.objetsPortables().
 function Tenues.bonus(o, mots)
     if #mots == 0 then return nil end
+    -- D'abord par le numéro de l'objet ou de son enchantement (toutes langues).
+    local parId, textes = nil, {}
+    local enchant = ns.Jeu.enchantDe and ns.Jeu.enchantDe(o.lien)
+    for _, m in ipairs(mots) do
+        if type(m) == "table" and (m.id or m.enchant) then
+            if (m.id and m.id == o.id) or (m.enchant and m.enchant == enchant) then
+                parId = math.max(parId or 0, m.valeur or 1)
+            end
+        else
+            textes[#textes + 1] = m
+        end
+    end
     o.bonusCache = o.bonusCache or {}
     local cle = table.concat((function()
         local s = {}
-        for _, m in ipairs(mots) do s[#s + 1] = type(m) == "table" and m[1] or m end
+        for _, m in ipairs(textes) do s[#s + 1] = type(m) == "table" and m[1] or m end
         return s
     end)(), "|")
-    if o.bonusCache[cle] == nil then o.bonusCache[cle] = ns.Jeu.bonusDans(o.lignes or {}, mots) or false end
-    return o.bonusCache[cle] or nil
+    if o.bonusCache[cle] == nil then o.bonusCache[cle] = ns.Jeu.bonusDans(o.lignes or {}, textes) or false end
+    local b = o.bonusCache[cle] or nil
+    if parId and (not b or parId > b) then b = parId end
+    return b
 end
 
 -- Objets possibles pour cet emplacement, les meilleurs d'abord : bonus de la
@@ -318,7 +391,7 @@ end
 function Tenues.connu(metiers, ty)
     for _, nom in ipairs(metiers) do
         local n = nom:lower()
-        for _, m in ipairs(ty.mots or {}) do
+        for _, m in ipairs(Tenues.motsType(ty)) do
             if type(m) == "string" and n == m then return nom end
         end
     end
@@ -340,7 +413,7 @@ end
 function Tenues.propositions(objets, metiers)
     local l, ref = {}, refus()
     for _, ty in ipairs(Tenues.TYPES) do
-        if ty.mots and not ty.sansProposer then
+        if (ty.mots or ty.recolte or ty.metier) and not ty.sansProposer then
             local metier = (ty.recolte or ty.metier) and Tenues.connu(metiers, ty) or nil
             local cle = "creer:" .. ty.cle
             local deja = ref[cle]
@@ -518,10 +591,54 @@ local function aRemettre(base, pieces)
     return false
 end
 
+-- À la connexion, le jeu remplit équipement et sacs quelques secondes après
+-- le chargement : avant, un emplacement paraît vide et un objet introuvable.
+-- Rien ne se décide avant (UI/Tenues.lua passe pret à true ensuite).
+Tenues.pret = true
+
+-- Ton équipement normal (sans tenue), emplacement par emplacement, pour les
+-- emplacements que tes tenues touchent. Filet de sécurité si l'état de la
+-- tenue est perdu (jeu fermé de force, plantage) : SuperGuideCharDB.tenuesNormal.
+local function normal()
+    SuperGuideCharDB = SuperGuideCharDB or {}
+    SuperGuideCharDB.tenuesNormal = SuperGuideCharDB.tenuesNormal or {}
+    return SuperGuideCharDB.tenuesNormal
+end
+
+function Tenues.noterNormal()
+    local jeu, n = ns.Jeu, normal()
+    for _, t in ipairs(Tenues.liste()) do
+        for case in pairs(t.pieces or {}) do n[case] = jeu.lienPiece(case) or false end
+    end
+end
+
+-- À la connexion, sans tenue en cours : une pièce de tenue restée sur toi
+-- alors que ton équipement normal était autre chose est remise comme à la
+-- fin d'une tenue (si la condition tient encore, la tenue reste, simplement).
+-- Rend le nombre de pièces à remettre.
+function Tenues.orphelins()
+    local e = etat()
+    if e.active or Tenues.demo then return 0 end
+    local jeu, n, base, nb = ns.Jeu, normal(), e.base or {}, 0
+    for _, t in ipairs(Tenues.liste()) do
+        for case, p in pairs(t.pieces or {}) do
+            local lien = n[case]
+            local voulu = lien and idDe(lien)
+            if base[case] == nil and lien ~= nil and jeu.idPiece(case) == p.id and voulu ~= p.id
+               and (lien == false or jeu.possede(voulu)) then
+                base[case] = lien
+                nb = nb + 1
+            end
+        end
+    end
+    e.base = next(base) and base or nil
+    return nb
+end
+
 -- Met la tenue voulue (ou remet ton équipement). force : réappliquer même
 -- si c'est déjà la tenue mise (pièces changées dans la fenêtre).
 function Tenues.evaluer(force)
-    if Tenues.demo then return false end   -- mode photo : tenues d'exemple, rien ne s'équipe
+    if Tenues.demo or not Tenues.pret then return false end   -- mode photo, ou connexion pas finie
     local voulue
     if R("tenuesActif") then voulue = Tenues.voulue(Tenues.contexte()) end
     local e = etat()
@@ -530,7 +647,12 @@ function Tenues.evaluer(force)
     local maintenant = GetTime and GetTime() or 0
     if cible == e.active and not force then
         -- Même tenue : seulement s'il reste une pièce à remettre, une fois par seconde.
-        if not aRemettre(e.base, pieces) or maintenant < prochain then return false end
+        if not aRemettre(e.base, pieces) then
+            -- Rien en cours, rien à remettre : ton équipement normal est noté.
+            if not cible and not e.active and not e.base and not Tenues.bloque() then Tenues.noterNormal() end
+            return false
+        end
+        if maintenant < prochain then return false end
     end
     if Tenues.bloque() then Tenues.enAttente = true; return false end
     Tenues.enAttente = false

@@ -24,10 +24,10 @@ end
 
 -- { version, nom, texte, cle (réglage à cocher, facultatif), voir (facultatif) }
 Nouveautes.LISTE = {
-    { version = "1.0.20", nom = L["Poubelle : choisis l'objet"], cle = "butinPoubelle",
-      texte = L["Sacs pleins : pas celui-là ? Les flèches ‹ › proposent un autre objet, du moins cher au plus cher."] },
-    { version = "1.0.19", nom = L["Auto Sets : ton équipement revient"],
-      texte = L["Quand la condition s'arrête, chaque pièce revient, vérifiée. Ce que tu changes toi-même pendant une tenue est respecté."] },
+    { version = "1.0.21", nom = L["Auto Sets : ton équipement revient"],
+      texte = L["Ton équipement normal revient toujours, même après une reconnexion en selle. Et Auto Sets marche maintenant dans toutes les langues du jeu."] },
+    { version = "1.0.21", nom = L["Poubelle : choisis l'objet"], cle = "butinPoubelle",
+      texte = L["Sacs pleins : les flèches ‹ › proposent un autre objet. Tes matériaux d'artisanat (cuir, étoffes, minerais) ne sont plus jamais proposés."] },
     { version = "1.0.18", nom = L["Outils de métier protégés"],
       texte = L["Pioche, couteau à dépecer, marteau, cannes à pêche... ne sont plus jamais proposés à la vente ni à la poubelle."] },
     { version = "1.0.17", nom = "Auto Sets", cle = "tenuesActif",
@@ -195,7 +195,7 @@ function Nouveautes.ouvrir(liste)
     cadre.sous:SetText(L["SuperRsk %s : ce qui est arrivé depuis ta dernière version."]:format(Nouveautes.version()))
     local y = 0
     for i, n in ipairs(liste) do
-        if i > 5 then break end
+        if i > 6 then break end
         local f, h = ligne(n, y)
         lignes[#lignes + 1] = f
         y = y - h
