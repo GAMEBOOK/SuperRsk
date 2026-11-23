@@ -1396,6 +1396,17 @@ function Jeu.possede(id)
     return C_Item and C_Item.GetItemCount and (C_Item.GetItemCount(id) or 0) > 0 or false
 end
 
+-- Objet de ce numéro dans les sacs (pas porté) ?
+function Jeu.dansSacs(id)
+    if not (id and C_Container and C_Container.GetContainerItemID) then return false end
+    for sac = 0, 4 do
+        for case = 1, C_Container.GetContainerNumSlots(sac) or 0 do
+            if C_Container.GetContainerItemID(sac, case) == id then return true end
+        end
+    end
+    return false
+end
+
 -- Métiers connus, dans la langue du jeu : { "Herboristerie", "Minage", ... }.
 function Jeu.metiers()
     local l = {}

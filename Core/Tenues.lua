@@ -605,10 +605,22 @@ local function normal()
     return SuperGuideCharDB.tenuesNormal
 end
 
+-- Objet porté, même si le jeu n'a pas encore son lien ; nil = rien de lu.
+local function lienPorte(case)
+    local jeu = ns.Jeu
+    local id = jeu.idPiece(case)
+    return jeu.lienPiece(case) or (id and "item:" .. id) or nil
+end
+
+-- Emplacements vraiment vides avant la tenue, vus pendant cette session.
+-- Un « vide » noté à la connexion peut être un objet pas encore chargé :
+-- sans cette preuve, rien n'est jamais retiré.
+local vides = {}
+
 function Tenues.noterNormal()
     local jeu, n = ns.Jeu, normal()
     for _, t in ipairs(Tenues.liste()) do
-        for case in pairs(t.pieces or {}) do n[case] = jeu.lienPiece(case) or false end
+        for case in pairs(t.pieces or {}) do n[case] = lienPorte(case) end
     end
 end
 
@@ -618,14 +630,15 @@ end
 -- Rend le nombre de pièces à remettre.
 function Tenues.orphelins()
     local e = etat()
-    if e.active or Tenues.demo then return 0 end
+    if e.active or Tenues.demo or not R("tenuesActif") then return 0 end
     local jeu, n, base, nb = ns.Jeu, normal(), e.base or {}, 0
     for _, t in ipairs(Tenues.liste()) do
         for case, p in pairs(t.pieces or {}) do
             local lien = n[case]
             local voulu = lien and idDe(lien)
-            if base[case] == nil and lien ~= nil and jeu.idPiece(case) == p.id and voulu ~= p.id
-               and (lien == false or jeu.possede(voulu)) then
+            -- Jamais de retrait ici : seulement un échange contre un vrai objet.
+            if base[case] == nil and voulu and jeu.idPiece(case) == p.id and voulu ~= p.id
+               and jeu.possede(voulu) then
                 base[case] = lien
                 nb = nb + 1
             end
@@ -668,6 +681,8 @@ function Tenues.evaluer(force)
             if actuel == voulu then
                 base[case], essais[case] = nil, nil
                 remis = remis + 1
+            elseif not voulu and not vides[case] then
+                base[case], essais[case] = nil, nil   -- « vide » sans preuve : la pièce reste sur toi
             elseif piece and actuel ~= piece.id and not essais[case] then
                 -- Tu as changé cette pièce toi-même pendant la tenue : on n'y touche pas.
                 base[case] = nil
@@ -691,10 +706,16 @@ function Tenues.evaluer(force)
     -- 2. Pièces de la tenue : ce qui était là avant est retenu une fois.
     local mises = 0
     for case, p in pairs(pieces) do
-        if jeu.idPiece(case) ~= p.id and jeu.possede(p.id) then
-            if base[case] == nil then base[case] = jeu.lienPiece(case) or false end
+        local actuel = jeu.idPiece(case)
+        -- Emplacement lu vide alors que la pièce n'est pas dans les sacs : elle
+        -- est sans doute déjà sur toi (équipement pas encore chargé).
+        if actuel ~= p.id and jeu.possede(p.id) and (actuel or jeu.dansSacs(p.id)) then
+            if base[case] == nil then
+                base[case] = lienPorte(case) or false
+                vides[case] = base[case] == false or nil
+            end
             -- Une arme à deux mains range la main gauche : retenue aussi.
-            if case == 16 and base[17] == nil and not pieces[17] then base[17] = jeu.lienPiece(17) or false end
+            if case == 16 and base[17] == nil and not pieces[17] then base[17] = lienPorte(17) or false end
             if jeu.mettre(p.lien or p.id, case) then mises = mises + 1 end
         end
     end

@@ -1002,8 +1002,17 @@ end
 
 -- Connexion finie (équipement et sacs remplis) : Auto Sets peut décider.
 -- D'abord les pièces de tenue restées sur toi, puis la tenue voulue.
+local attentes = 0
 local function pret()
     if Tenues.pret then return end
+    -- Rien de lu sur toi : chargement encore en cours, on repasse (30 s au plus).
+    local lu = false
+    for case = 1, 19 do if ns.Jeu.idPiece(case) then lu = true; break end end
+    if not lu and attentes < 15 then
+        attentes = attentes + 1
+        ns.Jeu.plusTard(2, pret)
+        return
+    end
     Tenues.pret = true
     pcall(Tenues.orphelins)
     pcall(Tenues.evaluer)
