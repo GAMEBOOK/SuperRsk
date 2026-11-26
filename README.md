@@ -24,9 +24,10 @@ Every module can be switched on or off on its own. Type `/sg` in game to open th
 | **Swap Layer in group** | Multiboxing with the LayerSwap addon. Left button: Leave group when grouped, otherwise Swap layer. Right button: Invite team members (list in the tooltip), they accept on their own. |
 | **Spy Ping** | With the Spy addon: click an enemy in the list to target and ping them for your group. Better enemy detection. |
 | **Honorable Kills** | Small movable widget with your honorable kills. Hover it for the guild top, click it for the full guild ranking. |
+| **Currencies** | Small movable widget with your gold and the currencies you tick (honor, reals...). Column or row, size and background to fit your UI. Off by default. |
 | **Quick Interact** | The game targets the nearest thing you can use, with an icon above it: ores, herbs, chests, quest objects, fishing bobbers, everything (up to 20 m). One press of your Interact key takes it. |
 | **Boost FPS** | One click graphics settings for more FPS and a sharper picture. Your previous settings come back when you turn it off. |
-| **Weather and Fog** | Removes rain, snow, sandstorms and fog. |
+| **Weather and Effects** | Removes rain, snow and sand, mutes the rain, reduces fog, and turns off other effects one by one. |
 | **Tsquid Area** | Lightsaber sound on critical hits (off by default). |
 
 ## Install

@@ -6,6 +6,8 @@
 -- même objet ramassé à nouveau s'ajoute à sa ligne. Les objets de quête ont
 -- une lueur dorée autour de l'icône. Placée par le mode
 -- Déplacement.
+-- Aperçu : une copie (même construction) dans la bannière du menu, nourrie
+-- d'un butin d'exemple ; la vraie liste continue d'afficher le vrai butin.
 
 local ADDON, ns = ...
 
@@ -25,11 +27,11 @@ local function SENS() return ns.Reglages.get("butinSens") == "haut" and 1 or -1 
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Butin\\"
 local ARGENT = "ARGENT"
 
-local ancre, zone, evenements
-local reserve, actives, attente = {}, {}, {}
+-- Une liste = { ancre, zone, reserve, actives, attente, survol, dernierePose } :
+-- la vraie (vraie) et la copie de l'aperçu (copie) ont chacune la sienne.
+local vraie, copie, evenements
 local corps = {}          -- objets du corps ouvert, par emplacement
-local dernierNombre, argent, dernierePose = 0, 0, 0
-local survol = false
+local dernierNombre, argent = 0, 0
 local minuteurArret
 
 local function vider(f)
@@ -43,8 +45,8 @@ local function vider(f)
     f:ClearAllPoints()
 end
 
-local function prendre()
-    for _, f in ipairs(reserve) do
+local function prendre(l)
+    for _, f in ipairs(l.reserve) do
         if f.libre then f.libre = false; return f end
     end
 end
@@ -109,16 +111,17 @@ local function lancerFlash(f, now)
     f.Flash:SetAlpha(1)
 end
 
-local function ordonner()
+local function ordonner(actives)
     for i = 2, #actives do
         local avant, f = actives[i - 1], actives[i]
         if f.fin < avant.fin + ECART_FONDU then f.fin = avant.fin + ECART_FONDU end
     end
 end
 
-local function poser(d, now)
-    local f = prendre()
+local function poser(l, d, now)
+    local f = prendre(l)
     if not f then return end
+    local actives = l.actives
     f.cle, f.lien, f.nombre, f.qualite = d.cle, d.lien, d.nombre, d.qualite or 1
     f.debut, f.fin, f.sansAnim, f.liberer, f.argent, f.nom = now, now + DUREE(), false, false, d.argent, d.nom
     local _, _, _, hex = couleur(f.qualite)
@@ -138,18 +141,19 @@ local function poser(d, now)
     end
     f.Texte:SetText(texte(d, d.nombre, hex))
     f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", zone, "TOPLEFT", -20, SENS() * (#actives * (HAUTEUR + ECART)))
+    f:SetPoint("TOPLEFT", l.zone, "TOPLEFT", -20, SENS() * (#actives * (HAUTEUR + ECART)))
     f:SetAlpha(0)
     f:Show()
     actives[#actives + 1] = f
 end
 
-local function animer()
+local function animer(l)
     local now = GetTime()
-    if #attente > 0 and now - dernierePose >= DELAI then
-        dernierePose = now
-        poser(table.remove(attente, 1), now)
-        ordonner()
+    local actives, attente, zone = l.actives, l.attente, l.zone
+    if #attente > 0 and now - l.dernierePose >= DELAI then
+        l.dernierePose = now
+        poser(l, table.remove(attente, 1), now)
+        ordonner(actives)
     end
     for i = #actives, 1, -1 do
         if actives[i].liberer then vider(table.remove(actives, i)) end
@@ -169,7 +173,7 @@ local function animer()
         if f.quete then f.Lueur:SetAlpha(0.55 + 0.45 * math.sin(now * 4)) end
         local reste = f.fin - now
         if reste < FONDU then
-            if survol then
+            if l.survol then
                 f.fin = now + DUREE()
                 f:SetAlpha(1)
             else
@@ -187,17 +191,18 @@ local function animer()
     end
 end
 
--- Nouvelle ligne, ou ajout à la ligne (ou l'attente) du même objet.
-function ListeButin.ajouter(d)
+-- Nouvelle ligne, ou ajout à la ligne (ou l'attente) du même objet, dans la liste l.
+local function ajouterA(l, d)
     d.nombre = (d.nombre and d.nombre >= 1) and d.nombre or 1
     d.cle = d.argent and ARGENT or d.nom
     local now = GetTime()
-    zone:SetScript("OnUpdate", animer)
+    local actives, attente = l.actives, l.attente
+    l.zone:SetScript("OnUpdate", l.animer)
     for _, f in ipairs(actives) do
         if f.cle == d.cle then
             -- Même objet : il reste plus longtemps, sans passer devant les suivants.
             f.fin = now + DUREE()
-            ordonner()
+            ordonner(actives)
             f.nombre = f.nombre + d.nombre
             if f.argent then f.Icone:SetTexture(iconeArgent(f.nombre)) end
             f.sansAnim = true
@@ -214,8 +219,14 @@ function ListeButin.ajouter(d)
     attente[#attente + 1] = d
 end
 
-local function creerLigne()
-    local f = CreateFrame("Button", nil, zone)
+-- Le vrai butin, dans la vraie liste.
+function ListeButin.ajouter(d)
+    if vraie then ajouterA(vraie, d) end
+end
+
+-- Ligne de la liste l. Sans souris (la copie) : ni infobulle ni survol.
+local function creerLigne(l, souris)
+    local f = CreateFrame("Button", nil, l.zone)
     f:SetSize(LARGEUR, HAUTEUR)
     if f.SetPropagateMouseClicks then f:SetPropagateMouseClicks(true) end
     f.Icone = f:CreateTexture(nil, "ARTWORK")
@@ -247,17 +258,21 @@ local function creerLigne()
     f.Lueur:SetBlendMode("ADD")
     f.Lueur:SetVertexColor(1, 0.82, 0.1)
     f.Lueur:Hide()
-    f:SetScript("OnEnter", function(self)
-        if not self.lien then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetHyperlink(self.lien)
-        GameTooltip:Show()
-        survol = true
-    end)
-    f:SetScript("OnLeave", function()
-        GameTooltip:Hide()
-        survol = false
-    end)
+    if souris then
+        f:SetScript("OnEnter", function(self)
+            if not self.lien then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetHyperlink(self.lien)
+            GameTooltip:Show()
+            l.survol = true
+        end)
+        f:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+            l.survol = false
+        end)
+    else
+        f:EnableMouse(false)
+    end
     vider(f)
     return f
 end
@@ -358,8 +373,9 @@ end
 
 -- Vers le bas : les lignes partent du haut de l'ancre. Vers le haut : du bas
 -- (la première ligne posée sur le bas de l'ancre, les suivantes au-dessus).
-function ListeButin.placerZone()
-    if not zone then return end
+local function placerZone(l)
+    if not l then return end
+    local zone, ancre = l.zone, l.ancre
     zone:ClearAllPoints()
     if SENS() > 0 then
         zone:SetPoint("TOPLEFT", ancre, "BOTTOMLEFT", 0, HAUTEUR)
@@ -370,13 +386,45 @@ function ListeButin.placerZone()
     end
 end
 
+-- La vraie liste et la copie de l'aperçu suivent le réglage du sens.
+function ListeButin.placerZone()
+    placerZone(vraie)
+    placerZone(copie)
+end
+
 function ListeButin.appliquer(cle)
     if cle == "butinSens" then ListeButin.placerZone() end
 end
 
+-- Fabrique une liste : ancre sur UIParent, zone, n lignes en réserve.
+-- Sans souris (la copie) : aucune ligne ne capte les clics ni le survol.
+local function construire(nom, hauteur, n, souris)
+    local ancre = CreateFrame("Frame", nom, UIParent)
+    ancre:SetSize(LARGEUR, hauteur)
+    ancre:SetClampedToScreen(true)
+    -- Seules les poignées du mode Déplacement bougent la liste : pas de zone
+    -- invisible qui mange les clics.
+    ancre:EnableMouse(false)
+    local l = { ancre = ancre, reserve = {}, actives = {}, attente = {}, survol = false, dernierePose = 0 }
+    l.animer = function() animer(l) end
+    ancre.liste = l
+    l.zone = CreateFrame("Frame", nil, ancre)
+    placerZone(l)
+    l.zone:SetHeight(1)
+    l.zone:EnableMouse(false)
+    for i = 1, n do l.reserve[i] = creerLigne(l, souris) end
+    return l
+end
+
+local function viderTout(l)
+    for i = #l.actives, 1, -1 do vider(table.remove(l.actives, i)) end
+    wipe(l.attente)
+    l.zone:SetScript("OnUpdate", nil)
+end
+
 ---------------------------------------------------------------------------
--- Aperçu (page du module) : la vraie liste, nourrie en boucle d'un butin
--- d'exemple. Même rendu, mêmes animations, mêmes réglages qu'en jeu.
+-- Aperçu (page du module) : une copie de la liste, nourrie en boucle d'un
+-- butin d'exemple. Même rendu, mêmes animations, mêmes réglages qu'en jeu.
 ---------------------------------------------------------------------------
 
 local EXEMPLES = {
@@ -387,60 +435,44 @@ local EXEMPLES = {
     { nom = "Patte de loup", icone = "Interface\\Icons\\INV_Misc_MonsterClaw_04", qualite = 1, nombre = 1, quete = true },
     { nom = "Os brisé", icone = "Interface\\Icons\\INV_Misc_Bone_01", qualite = 0, nombre = 1 },
 }
-local pilote, hauteurAvant
+local LIGNES_APERCU = 3   -- elles tiennent dans la bannière du menu
 
-function ListeButin.vitrine() return ancre, "butin" end
-
-local function viderTout()
-    for i = #actives, 1, -1 do vider(table.remove(actives, i)) end
-    wipe(attente)
-    if zone then zone:SetScript("OnUpdate", nil) end
+-- Copie montrée dans la bannière d'aperçu du menu (la vraie reste en place).
+function ListeButin.vitrine()
+    if not copie then
+        copie = construire(nil, LIGNES_APERCU * (HAUTEUR + ECART), LIGNES_APERCU + 1, false)
+        copie.ancre:Hide()
+    end
+    return copie.ancre, "butin", true
 end
 
 function ListeButin.apercu(oui)
-    if not ancre then return end
-    pilote = pilote or CreateFrame("Frame")
+    if not copie then return end
+    local ancre = copie.ancre
+    viderTout(copie)
     if oui then
-        hauteurAvant = hauteurAvant or ancre:GetHeight()
-        ancre:SetHeight(3 * (HAUTEUR + ECART))     -- tient dans la bannière du menu
-        ListeButin.placerZone()
-        viderTout()
         ancre:Show()
         local n, prochain = 0, 0
-        pilote:SetScript("OnUpdate", function()
+        -- La copie se nourrit elle-même : cachée (menu fermé), elle s'arrête.
+        ancre:SetScript("OnUpdate", function()
             local now = GetTime()
-            -- 3 lignes au plus : elles tiennent dans la bannière.
-            if now < prochain or #actives + #attente >= 3 then return end
+            if now < prochain or #copie.actives + #copie.attente >= LIGNES_APERCU then return end
             prochain = now + 0.9
             n = n % #EXEMPLES + 1
-            local e = EXEMPLES[n]
             local d = {}
-            for k, v in pairs(e) do d[k] = v end
+            for k, v in pairs(EXEMPLES[n]) do d[k] = v end
             if d.nom then d.nom = L[d.nom] end
-            ListeButin.ajouter(d)
+            ajouterA(copie, d)
         end)
     else
-        pilote:SetScript("OnUpdate", nil)
-        viderTout()
-        if hauteurAvant then ancre:SetHeight(hauteurAvant); hauteurAvant = nil end
-        ListeButin.placerZone()
+        ancre:SetScript("OnUpdate", nil)
+        ancre:Hide()
     end
 end
 
 function ListeButin.creer()
-    ancre = CreateFrame("Frame", "SuperGuideListeButin", UIParent)
-    ancre:SetSize(LARGEUR, 5 * (HAUTEUR + ECART))
-    ancre:SetClampedToScreen(true)
-    ns.Deplacement.inscrire(ancre, L["Butin ramassé"], "butin", { "CENTER", 400, 200 })
-    -- Seules les poignées du mode Déplacement la bougent : pas de zone
-    -- invisible qui mange les clics.
-    ancre:EnableMouse(false)
-
-    zone = CreateFrame("Frame", nil, ancre)
-    ListeButin.placerZone()
-    zone:SetHeight(1)
-    zone:EnableMouse(false)
-    for i = 1, MAX do reserve[i] = creerLigne() end
+    vraie = construire("SuperGuideListeButin", 5 * (HAUTEUR + ECART), MAX, true)
+    ns.Deplacement.inscrire(vraie.ancre, L["Butin ramassé"], "butin", { "CENTER", 400, 200 })
 
     evenements = CreateFrame("Frame")
     evenements:SetScript("OnEvent", function(_, e, ...) ListeButin.surEvenement(e, ...) end)

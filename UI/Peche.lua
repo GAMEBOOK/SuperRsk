@@ -2,6 +2,8 @@
 -- prioritaire qui ferre), les événements de la ligne et le widget de pêche
 -- (déplaçable) : prises et valeur de la session, tout le détail au survol.
 -- Décisions et session dans Core/Peche.lua.
+-- Aperçu : une copie (même construction) dans la bannière du menu, avec un
+-- exemple animé ; le vrai widget reste à sa place avec la vraie session.
 
 local ADDON, ns = ...
 
@@ -9,7 +11,7 @@ local Peche = ns.Peche
 local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 local function R(cle) return ns.Reglages.get(cle) end
 
-local proprio, lanceur, widget
+local proprio, lanceur, widget, copie
 local proprioTenue, boutonTenue   -- touche « Tenue de pêche » (plus bas)
 local apercu = false
 local ligneFin, ligneDuree   -- canal en cours (secondes, horloge GetTime)
@@ -160,9 +162,8 @@ local EXEMPLE = {
     appat = 412, appats = { { nom = "Appât brillant", nombre = 7, icone = "Interface\\Icons\\INV_Misc_Orb_03" } },
 }
 
--- Tout ce que montrent le widget et son info-bulle, réel ou d'exemple.
+-- Tout ce que montre l'info-bulle du vrai widget.
 local function donnees()
-    if apercu then return EXEMPLE end
     local s = Peche.session()
     local liste, total = Peche.bilan(ns.Jeu.prixObjet)
     local rang, bonus, max = ns.Jeu.competencePeche(nomPeche())
@@ -237,172 +238,180 @@ end
 -- appât, et le bouton « Remettre mon équipement » quand il y a lieu.
 local LARGEUR, HAUTEUR, BOUTON = 236, 146, 34
 
-local function competenceTexte()
+local function competenceTexte(exemple)
     local rang, bonus, max
-    if apercu then rang, bonus, max = 182, 25, 225 else rang, bonus, max = ns.Jeu.competencePeche(nomPeche()) end
+    if exemple then rang, bonus, max = 182, 25, 225 else rang, bonus, max = ns.Jeu.competencePeche(nomPeche()) end
     if not rang then return "" end
     return rang .. ((bonus or 0) > 0 and (" |cff3fe07a+" .. bonus .. "|r") or "") .. " / " .. max
 end
 
--- Compétence et appât relus une fois par seconde.
+-- Compétence et appât relus une fois par seconde (vrai widget).
 local lents, lentsQuand = {}, -1
-local function lireLents()
+local function lireLents(exemple)
+    if exemple then return { competence = competenceTexte(true), appat = 412 } end
     local maintenant = GetTime()
-    if not apercu and maintenant - lentsQuand < 1 then return lents end
+    if maintenant - lentsQuand < 1 then return lents end
     lentsQuand = maintenant
-    lents = { competence = competenceTexte(), appat = apercu and 412 or ns.Jeu.appatActif() }
+    lents = { competence = competenceTexte(false), appat = ns.Jeu.appatActif() }
     return lents
 end
 
-local function rafraichir()
-    if not widget then return end
-    -- Visible canne en main, et tant que l'équipement d'avant n'est pas remis.
-    local visible = apercu or ((Peche.arme() or Peche.tenueMise()) and R("pecheWidget") ~= false)
-    widget:SetShown(visible)
-    if not visible then return end
+-- Met le cadre w en forme : exemple animé (copie de l'aperçu) ou vraie session.
+local function rendre(w, exemple)
     local T = ns.Theme
-    local s = apercu and EXEMPLE or Peche.session()
+    local s = exemple and EXEMPLE or Peche.session()
     local _, total
-    if apercu then total = EXEMPLE.total else _, total = Peche.bilan(ns.Jeu.prixObjet) end
-    local lent = lireLents()
+    if exemple then total = EXEMPLE.total else _, total = Peche.bilan(ns.Jeu.prixObjet) end
+    local lent = lireLents(exemple)
     local touche = Peche.nomTouche(R("pecheTouche") or "SPACE")
     local maintenant = GetTime()
 
-    widget.competence:SetText(lent.competence)
-    widget.prises:SetText(tostring(s.prises))
-    widget.valeur:SetText(total > 0 and argentCourt(total) or "-")
-    widget.temps:SetText(duree(s.temps))
+    w.competence:SetText(lent.competence)
+    w.prises:SetText(tostring(s.prises))
+    w.valeur:SetText(total > 0 and argentCourt(total) or "-")
+    w.temps:SetText(duree(s.temps))
 
     -- Ligne à l'eau : l'état passe en couleur, la barre se vide, l'icône pulse.
-    local ligne = apercu and (maintenant % 6 < 4) or Peche.etat() == "ligne"
+    local ligne = exemple and (maintenant % 6 < 4) or Peche.etat() == "ligne"
     if ligne then
         local reste, tot = 1, 1
-        if apercu then reste, tot = 4 - maintenant % 6, 4
+        if exemple then reste, tot = 4 - maintenant % 6, 4
         elseif ligneFin then reste, tot = ligneFin - maintenant, ligneDuree end
-        widget.etat:SetText(L["Le bouchon plonge : %s pour ferrer"]:format(touche))
-        widget.etat:SetTextColor(T.rgb("accent"))
-        widget.barre:SetWidth(math.max(1, (LARGEUR - 24) * math.max(0, math.min(1, reste / tot))))
-        widget.barre:Show()
-        widget.icone:SetAlpha(0.75 + 0.25 * math.sin(maintenant * 6))
+        w.etat:SetText(L["Le bouchon plonge : %s pour ferrer"]:format(touche))
+        w.etat:SetTextColor(T.rgb("accent"))
+        w.barre:SetWidth(math.max(1, (LARGEUR - 24) * math.max(0, math.min(1, reste / tot))))
+        w.barre:Show()
+        w.icone:SetAlpha(0.75 + 0.25 * math.sin(maintenant * 6))
     else
-        if appatMacro and not apercu then
-            widget.etat:SetText(L["Appât à poser · %s"]:format(touche))
-            widget.etat:SetTextColor(T.rgb("orange"))
+        if appatMacro and not exemple then
+            w.etat:SetText(L["Appât à poser · %s"]:format(touche))
+            w.etat:SetTextColor(T.rgb("orange"))
         else
-            widget.etat:SetText((apercu or Peche.arme()) and L["Prêt à pêcher · %s pour lancer"]:format(touche)
+            w.etat:SetText((exemple or Peche.arme()) and L["Prêt à pêcher · %s pour lancer"]:format(touche)
                 or L["Canne rangée"])
-            widget.etat:SetTextColor(T.rgb("texteDoux"))
+            w.etat:SetTextColor(T.rgb("texteDoux"))
         end
-        widget.barre:Hide()
-        widget.icone:SetAlpha(1)
+        w.barre:Hide()
+        w.icone:SetAlpha(1)
     end
 
     if lent.appat then
-        widget.appat:SetText(L["Appât : encore %s"]:format(duree(lent.appat)))
-        widget.appat:SetTextColor(T.rgb("vert"))
+        w.appat:SetText(L["Appât : encore %s"]:format(duree(lent.appat)))
+        w.appat:SetTextColor(T.rgb("vert"))
     else
-        widget.appat:SetText(L["Pas d'appât sur la canne"])
-        widget.appat:SetTextColor(T.rgb("orange"))
+        w.appat:SetText(L["Pas d'appât sur la canne"])
+        w.appat:SetTextColor(T.rgb("orange"))
     end
 
     -- Mode pêche : badge vert et liseré vert ; bleu quand la ligne est à l'eau.
-    local actif = apercu or Peche.arme()
+    local actif = exemple or Peche.arme()
     if actif then
         -- Pastille du jeu (le rond n'existe pas dans la police Archivo).
-        widget.mode:SetText("|TInterface\\COMMON\\Indicator-Green:10:10:0:0|t |cff3fe07a" .. L["MODE PÊCHE"] .. "|r")
-        widget.bordTex:SetVertexColor(T.rgb(ligne and "accent" or "vert"))
+        w.mode:SetText("|TInterface\\COMMON\\Indicator-Green:10:10:0:0|t |cff3fe07a" .. L["MODE PÊCHE"] .. "|r")
+        w.bordTex:SetVertexColor(T.rgb(ligne and "accent" or "vert"))
     else
-        widget.mode:SetText("|cff6f7889" .. L["CANNE RANGÉE"] .. "|r")
-        widget.bordTex:SetVertexColor(T.rgb("bordFort"))
+        w.mode:SetText("|cff6f7889" .. L["CANNE RANGÉE"] .. "|r")
+        w.bordTex:SetVertexColor(T.rgb("bordFort"))
     end
 
-    local bouton = apercu or Peche.aRemettre()
-    widget.remettre:SetShown(bouton)
-    widget:SetHeight(HAUTEUR + (bouton and BOUTON or 0))
+    local bouton = exemple or Peche.aRemettre()
+    w.remettre:SetShown(bouton)
+    w:SetHeight(HAUTEUR + (bouton and BOUTON or 0))
+    w:Show()
 end
 
-local function creerWidget()
+-- Le vrai widget (visible canne en main, et tant que l'équipement d'avant
+-- n'est pas remis ; l'aperçu n'y touche pas) et la copie de l'aperçu.
+local function rafraichir()
+    if copie then
+        if apercu then rendre(copie, true) else copie:Hide() end
+    end
+    if not widget then return end
+    local visible = (Peche.arme() or Peche.tenueMise()) and R("pecheWidget") ~= false
+    if visible then rendre(widget, false) else widget:Hide() end
+end
+
+-- La carte et ses éléments ; quandRemettre : clic sur « Remettre mon équipement ».
+local function construire(nom, quandRemettre)
     local T, C = ns.Theme, ns.Controles
-    widget = CreateFrame("Button", "SuperGuidePeche", UIParent)
-    widget:SetSize(LARGEUR, HAUTEUR)
-    widget:SetFrameStrata("MEDIUM")
-    widget:SetClampedToScreen(true)
-    widget.fondTex, widget.bordTex = T.fond(widget, "panneau", 0.94, "bordFort")
+    local w = CreateFrame("Button", nom, UIParent)
+    w:SetSize(LARGEUR, HAUTEUR)
+    w:SetFrameStrata("MEDIUM")
+    w:SetClampedToScreen(true)
+    w.fondTex, w.bordTex = T.fond(w, "panneau", 0.94, "bordFort")
 
     -- En-tête
-    widget.icone = widget:CreateTexture(nil, "ARTWORK")
-    widget.icone:SetSize(30, 30)
-    widget.icone:SetPoint("TOPLEFT", 12, -12)
-    widget.icone:SetTexture("Interface\\Icons\\Trade_Fishing")
-    widget.icone:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    local titre = C.texte(widget, "titre", "texte")
-    titre:SetPoint("TOPLEFT", widget.icone, "TOPRIGHT", 10, -1)
+    w.icone = w:CreateTexture(nil, "ARTWORK")
+    w.icone:SetSize(30, 30)
+    w.icone:SetPoint("TOPLEFT", 12, -12)
+    w.icone:SetTexture("Interface\\Icons\\Trade_Fishing")
+    w.icone:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local titre = C.texte(w, "titre", "texte")
+    titre:SetPoint("TOPLEFT", w.icone, "TOPRIGHT", 10, -1)
     titre:SetText(L["Pêche"])
-    widget.competence = C.texte(widget, "compteur", "texteDoux")
-    widget.competence:SetPoint("TOPRIGHT", -12, -14)
-    widget.competence:SetJustifyH("RIGHT")
+    w.competence = C.texte(w, "compteur", "texteDoux")
+    w.competence:SetPoint("TOPRIGHT", -12, -14)
+    w.competence:SetJustifyH("RIGHT")
     -- Badge du mode pêche, sous le titre.
-    widget.mode = widget:CreateFontString(nil, "OVERLAY")
-    widget.mode:SetFontObject(T.policeFixe("libelle"))
-    widget.mode:SetPoint("BOTTOMLEFT", widget.icone, "BOTTOMRIGHT", 10, 2)
+    w.mode = w:CreateFontString(nil, "OVERLAY")
+    w.mode:SetFontObject(T.policeFixe("libelle"))
+    w.mode:SetPoint("BOTTOMLEFT", w.icone, "BOTTOMRIGHT", 10, 2)
     -- État de la ligne : sa propre ligne, toute la largeur.
-    widget.etat = C.texte(widget, "petit", "texteDoux")
-    widget.etat:SetPoint("TOPLEFT", 12, -52)
-    widget.etat:SetWidth(LARGEUR - 24)
-    widget.etat:SetWordWrap(false)
+    w.etat = C.texte(w, "petit", "texteDoux")
+    w.etat:SetPoint("TOPLEFT", 12, -52)
+    w.etat:SetWidth(LARGEUR - 24)
+    w.etat:SetWordWrap(false)
 
-    local trait = T.separateur(widget)
+    local trait = T.separateur(w)
     trait:SetPoint("TOPLEFT", 12, -70)
     trait:SetPoint("TOPRIGHT", -12, -70)
 
     -- Trois chiffres de la session
     local col = (LARGEUR - 24) / 3
     local function chiffre(i, libelle)
-        local v = widget:CreateFontString(nil, "OVERLAY")
+        local v = w:CreateFontString(nil, "OVERLAY")
         v:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 16, "")
         v:SetTextColor(T.rgb("texte"))
-        v:SetPoint("TOP", widget, "TOPLEFT", 12 + col * (i - 0.5), -80)
-        local l = widget:CreateFontString(nil, "OVERLAY")
+        v:SetPoint("TOP", w, "TOPLEFT", 12 + col * (i - 0.5), -80)
+        local l = w:CreateFontString(nil, "OVERLAY")
         l:SetFontObject(T.policeFixe("libelle"))
         l:SetTextColor(T.rgb("textePale"))
         l:SetPoint("TOP", v, "BOTTOM", 0, -3)
         l:SetText(libelle)
         return v
     end
-    widget.prises = chiffre(1, L["PRISES"])
-    widget.valeur = chiffre(2, L["VALEUR"])
-    widget.temps = chiffre(3, L["TEMPS"])
+    w.prises = chiffre(1, L["PRISES"])
+    w.valeur = chiffre(2, L["VALEUR"])
+    w.temps = chiffre(3, L["TEMPS"])
 
     -- Barre de la ligne (fond toujours là, remplissage pendant la ligne)
-    local fond = widget:CreateTexture(nil, "ARTWORK")
+    local fond = w:CreateTexture(nil, "ARTWORK")
     fond:SetColorTexture(T.rgb("sombre"))
     fond:SetHeight(3)
     fond:SetPoint("TOPLEFT", 12, -118)
     fond:SetPoint("TOPRIGHT", -12, -118)
-    widget.barre = widget:CreateTexture(nil, "OVERLAY")
-    widget.barre:SetColorTexture(T.rgb("accent"))
-    widget.barre:SetHeight(3)
-    widget.barre:SetPoint("LEFT", fond, "LEFT")
+    w.barre = w:CreateTexture(nil, "OVERLAY")
+    w.barre:SetColorTexture(T.rgb("accent"))
+    w.barre:SetHeight(3)
+    w.barre:SetPoint("LEFT", fond, "LEFT")
 
-    widget.appat = C.texte(widget, "petit", "vert")
-    widget.appat:SetPoint("TOPLEFT", 12, -128)
-
-    widget.etiquette = C.texte(widget, "petit", "accent")
-    widget.etiquette:SetPoint("BOTTOM", widget, "TOP", 0, 3)
-    widget.etiquette:SetText(L["APERÇU"])
-    widget.etiquette:Hide()
+    w.appat = C.texte(w, "petit", "vert")
+    w.appat:SetPoint("TOPLEFT", 12, -128)
 
     -- Dans la carte, en bas : l'équipement d'avant en un clic.
-    widget.remettre = C.bouton(widget, L["Remettre mon équipement"], "accent", function()
-        if not apercu then Peche.rangerTenue() end
-    end, LARGEUR - 24)
-    widget.remettre:SetPoint("BOTTOM", 0, 12)
-    widget.remettre.texte:SetTextColor(T.rgb("accent"))
-    widget.remettre:Hide()
+    w.remettre = C.bouton(w, L["Remettre mon équipement"], "accent", quandRemettre, LARGEUR - 24)
+    w.remettre:SetPoint("BOTTOM", 0, 12)
+    w.remettre.texte:SetTextColor(T.rgb("accent"))
+    w.remettre:Hide()
 
+    w:Hide()
+    return w
+end
+
+local function creerWidget()
+    widget = construire("SuperGuidePeche", function() Peche.rangerTenue() end)
     widget:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     widget:SetScript("OnClick", function(self, bouton)
-        if apercu then return end
         if bouton == "LeftButton" then
             if Peche.aRemettre() then Peche.rangerTenue() end
             return
@@ -427,18 +436,31 @@ local function creerWidget()
             if GameTooltip:IsOwned(self) then infobulle(self) end
         end
     end)
-    widget:Hide()
     if ns.Deplacement then
         ns.Deplacement.inscrire(widget, L["Pêche"], "peche", { "RIGHT", -60, 120 })
     end
 end
 
--- Cadre montré dans la bannière d'aperçu du menu, et sa clé de position.
-function Peche.vitrine() return widget, "peche" end
+-- Copie montrée dans la bannière d'aperçu du menu (le vrai reste en place),
+-- animée 10 fois par seconde tant que l'aperçu dure.
+function Peche.vitrine()
+    if not copie then
+        copie = construire(nil, function() end)
+        copie:EnableMouse(false)
+        local cumul = 0
+        copie:SetScript("OnUpdate", function(self, dt)
+            cumul = cumul + (dt or 0.1)
+            if cumul < 0.1 then return end
+            cumul = 0
+            if apercu then rendre(self, true) else self:Hide() end
+        end)
+        if apercu then rendre(copie, true) end
+    end
+    return copie, "peche", true
+end
 
 function Peche.apercu(oui)
     apercu = oui and true or false
-    if widget then widget.etiquette:SetShown(apercu) end
     rafraichir()
 end
 

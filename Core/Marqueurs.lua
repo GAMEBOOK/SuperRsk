@@ -136,6 +136,36 @@ function Swap.layerSwap()
     return (SlashCmdList and SlashCmdList.LAYERSWAP) or _G.LayerSwapPanelSwapButton
 end
 
+-- Changements de couche de l'heure. Sur Forever, le jeu limite les
+-- changements de couche : 10 par heure, l'heure partant du premier
+-- changement (limite mesurée par l'auteur de LayerSwap, pas annoncée par
+-- Blizzard). LayerSwap compte les vrais changements par personnage dans
+-- LayerSwapDB.limit = { who, start, moves, hold } : on lit son compte, on
+-- n'en tient pas un second.
+-- Rend { utilises, max, attente (s avant de pouvoir changer, 0 = libre),
+-- fin (s avant la nouvelle heure, nil sans changement cette heure) } ou nil.
+Swap.LIMITE, Swap.HEURE = 10, 3600
+function Swap.compteur(t)
+    local db = _G.LayerSwapDB
+    local c = type(db) == "table" and db.limit
+    t = t or (time and time()) or 0
+    local r = { utilises = 0, max = Swap.LIMITE, attente = 0 }
+    if type(c) ~= "table" or type(c.start) ~= "number" or type(c.moves) ~= "table" then return r end
+    -- Compte d'un autre perso (LayerSwap le range à la connexion) : ignoré.
+    local moi = UnitName and UnitName("player")
+    if type(c.who) == "string" and type(moi) == "string" and not secret(moi)
+        and c.who:sub(1, #moi) ~= moi then return r end
+    if type(c.hold) == "number" and t < c.hold and not c.unsure then r.attente = c.hold - t end
+    if t - c.start < Swap.HEURE then
+        for _, a in ipairs(c.moves) do
+            if type(a) == "number" and a >= c.start then r.utilises = r.utilises + 1 end
+        end
+        r.fin = c.start + Swap.HEURE - t
+        if r.utilises >= Swap.LIMITE then r.attente = math.max(r.attente, r.fin) end
+    end
+    return r
+end
+
 -- Bouton de gauche : « quitter » dès qu'on est en groupe (sa team ou celui
 -- de l'hôte), sinon « demander » le swap. Juste après un départ, IsInGroup
 -- reste vrai un instant : la phase (ou l'hôte quitté) dit la suite.

@@ -113,6 +113,15 @@ function Jeu.ecrireCvar(nom, v)
     if C_CVar and C_CVar.SetCVar then C_CVar.SetCVar(nom, v) elseif SetCVar then SetCVar(nom, v) end
 end
 
+-- Pluie, neige ou tempête en cours ? (types 1 à 3 du jeu)
+function Jeu.ilPleut()
+    if not (C_Weather and C_Weather.GetCurrentWeather) then return false end
+    local ok, w = pcall(C_Weather.GetCurrentWeather)
+    if not ok or type(w) ~= "table" then return false end
+    local ok2, oui = pcall(function() return (w.type or 0) > 0 and (w.intensity or 0) > 0 end)
+    return ok2 and oui or false
+end
+
 function Jeu.enCombat() return InCombatLockdown and InCombatLockdown() or false end
 
 -- Addon installé et activé (chargé) ?

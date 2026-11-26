@@ -57,6 +57,7 @@ local function confirmer(question, action)
     local f = StaticPopup_Show("SUPERGUIDE_CONFIRMER", question, nil, action)
     if f then f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "CENTER") end
 end
+Menu.confirmer = confirmer
 
 ---------------------------------------------------------------------------
 -- Sauvegarde des réglages : texte à copier / coller (fenêtre du jeu)
@@ -637,11 +638,40 @@ local deplie = false
 local apercuActuel, monte, fixe
 local HAUT_FIXE = 18 + VITRINE + 14   -- libellé, bannière, marge sous l'en-tête fixe
 
--- L'élément du module (sa vraie barre, son vrai widget) quitte sa place et
--- s'affiche dans la bannière, réduit s'il est trop large ; il y revient après.
+-- La bannière montre une COPIE de l'élément du module (vitrine() rend
+-- cadre, clé, true) : le vrai reste à sa place sur l'écran, visible, et suit
+-- les réglages en direct. Copie réduite si elle est trop large.
+-- Sans copie (ancien contrat), le vrai élément est emprunté puis rendu.
+-- Réduit l'élément de la bannière s'il est trop grand. Une copie est
+-- recadrée à chaque réglage changé (sa taille suit les réglages).
+local function ajusterVitrine()
+    if not monte then return end
+    local f = monte.cadre
+    if monte.copie then f:SetScale(1) end
+    local largeur = (f:GetWidth() or 0) * (f:GetScale() or 1)
+    if largeur > W - 40 then f:SetScale((f:GetScale() or 1) * (W - 40) / largeur) end
+    local hauteur = (f:GetHeight() or 0) * (f:GetScale() or 1)
+    if hauteur > VITRINE - 12 then f:SetScale((f:GetScale() or 1) * (VITRINE - 12) / hauteur) end
+end
+Menu.ajusterVitrine = ajusterVitrine
+local ecouteVitrine = false
+local function ecouterVitrine()
+    if ecouteVitrine or not (ns.Reglages and ns.Reglages.ecouter) then return end
+    ecouteVitrine = true
+    ns.Reglages.ecouter(function()
+        if monte and monte.copie and C_Timer then C_Timer.After(0, ajusterVitrine) end
+    end)
+end
+
 local function demonter()
     if not monte then return end
     local f = monte.cadre
+    if monte.copie then
+        f:Hide()
+        f:SetScale(1)
+        monte = nil
+        return
+    end
     f:SetParent(UIParent)
     f:SetScale(1)
     f:SetFrameStrata(monte.strate or "MEDIUM")
@@ -651,19 +681,17 @@ local function demonter()
 end
 
 local function monter(m, banniere)
-    local f, cle = m.vitrine()
+    local f, cle, copie = m.vitrine()
     if not (f and banniere) then return end
-    monte = { cadre = f, cle = cle, strate = f:GetFrameStrata() }
+    monte = { cadre = f, cle = cle, strate = f:GetFrameStrata(), copie = copie == true }
+    ecouterVitrine()
     f:SetParent(banniere)
     f:SetFrameStrata(banniere:GetFrameStrata())
     f:SetFrameLevel((banniere:GetFrameLevel() or 0) + 5)
     f:EnableMouse(false)
     f:ClearAllPoints()
     f:SetPoint("CENTER", banniere, "CENTER", 0, 0)
-    local largeur = (f:GetWidth() or 0) * (f:GetScale() or 1)
-    if largeur > W - 40 then f:SetScale((f:GetScale() or 1) * (W - 40) / largeur) end
-    local hauteur = (f:GetHeight() or 0) * (f:GetScale() or 1)
-    if hauteur > VITRINE - 12 then f:SetScale((f:GetScale() or 1) * (VITRINE - 12) / hauteur) end
+    ajusterVitrine()
 end
 
 local function changerApercu(m, p)

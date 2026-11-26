@@ -52,7 +52,7 @@ function Apercus.vitrine(nom)
         f:Hide()
         cadres[nom] = f
     end
-    return f, "apercu:" .. nom
+    return f, "apercu:" .. nom, true   -- scène à part : rien à rendre à l'écran
 end
 
 function Apercus.apercu(nom, oui)

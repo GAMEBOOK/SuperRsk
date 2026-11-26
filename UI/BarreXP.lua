@@ -15,9 +15,9 @@ local H_BARRE = 22
 BarreXP.etat = {}
 local etat = BarreXP.etat
 
-local cadre, barre, remplissage, segs, txt = nil, nil, nil, {}, {}
-local contour
-local etincelle
+-- cadre : la vraie barre ; copie : la même, montrée dans la bannière
+-- d'aperçu du menu (construite à la demande).
+local cadre, copie
 local blizzardEnAttente = false
 
 local function R(cle) return ns.Reglages.get(cle) end
@@ -117,11 +117,12 @@ function BarreXP.couleurContour(nom)
     return T.rgb("accent")
 end
 
--- Texture de la barre et des segments, contour.
-local function habiller()
+-- Texture de la barre et des segments, contour (cadre w : la vraie ou la copie).
+local function habiller(w)
+    local segs, contour = w.segs, w.contour
     local chemin = BarreXP.chemin(R("xpTexture"))
-    remplissage:SetTexture(chemin)
-    degrade(remplissage)
+    w.remplissage:SetTexture(chemin)
+    degrade(w.remplissage)
     for _, s in pairs(segs) do s:SetTexture(chemin) end
     segs.termine:SetVertexColor(teinte("xpCouleurQuetes", "orange"))
     segs.enCours:SetVertexColor(teinte("xpCouleurEnCours", "orange"))
@@ -133,10 +134,10 @@ local function habiller()
     contour:Show()
 end
 
-local function contourTexte()
+local function contourTexte(w)
     local nom = R("xpContourTexte")
     local d = BarreXP.drapeauPolice(nom)
-    for _, fs in pairs(txt) do
+    for _, fs in pairs(w.txt) do
         local police, taille = fs:GetFont()
         if police and taille then fs:SetFont(police, taille, d) end
         fs:SetShadowColor(0, 0, 0, 1)
@@ -151,33 +152,31 @@ local function masquerBlizzard()
     blizzardEnAttente = ns.Jeu.barreJeuCachee(oui) == false
 end
 
-function BarreXP.creer()
+-- Fabrique une barre (la vraie avec son nom, la copie de l'aperçu sans nom).
+local function construire(nom)
     local T, C = ns.Theme, ns.Controles
-    etat.session = SuperGuideCharDB.sessionXP
+    local w = CreateFrame("Frame", nom, UIParent)
+    w.segs, w.txt = {}, {}
+    w:SetClampedToScreen(true)
+    w:SetSize(R("barreXPLargeur"), H_BARRE)
 
-    cadre = CreateFrame("Frame", "SuperGuideBarreXP", UIParent)
-    cadre:SetClampedToScreen(true)
-    cadre:SetSize(R("barreXPLargeur"), H_BARRE)
-    ns.Deplacement.inscrire(cadre, L["Barre d'XP"], "barreXP", { "TOP", 0, -34 })
-    cadre.etiquette = C.texte(cadre, "petit", "accent")
-    cadre.etiquette:SetPoint("BOTTOM", cadre, "TOP", 0, 18)
-    cadre.etiquette:SetText(L["APERÇU"])
-    cadre.etiquette:Hide()
-
-    barre = CreateFrame("Frame", nil, cadre)
+    local barre = CreateFrame("Frame", nil, w)
+    w.barre = barre
     barre:SetHeight(H_BARRE)
     local fond = barre:CreateTexture(nil, "BACKGROUND")
     fond:SetAllPoints()
     fond:SetColorTexture(T.rgb("panneau"))
     fond:SetAlpha(0.9)
 
-    remplissage = barre:CreateTexture(nil, "BORDER")
+    local remplissage = barre:CreateTexture(nil, "BORDER")
+    w.remplissage = remplissage
     remplissage:SetTexture(BLANC)
     remplissage:SetPoint("TOPLEFT")
     remplissage:SetPoint("BOTTOMLEFT")
     degrade(remplissage)
     -- Étincelle : un trait clair à la tête de la progression.
-    etincelle = barre:CreateTexture(nil, "ARTWORK", nil, 2)
+    local etincelle = barre:CreateTexture(nil, "ARTWORK", nil, 2)
+    w.etincelle = etincelle
     etincelle:SetColorTexture(1, 1, 1, 0.85)
     etincelle:SetWidth(2)
     etincelle:SetPoint("TOP", remplissage, "TOPRIGHT")
@@ -186,17 +185,18 @@ function BarreXP.creer()
     local teintes = {
         termine = { "orange", 1 }, enCours = { "orange", 0.4 }, repos = { "repos", 0.85 },
     }
-    for nom, t in pairs(teintes) do
+    for n, t in pairs(teintes) do
         local s = barre:CreateTexture(nil, "BORDER")
         s:SetTexture(BLANC)
         s:SetVertexColor(T.rgb(t[1]))
         s:SetAlpha(t[2])
-        segs[nom] = s
+        w.segs[n] = s
     end
 
     -- Contour d'un pixel autour de la barre. Pas de case à part pour les
     -- pourcentages : collée au bout, elle se lisait comme de l'XP manquante.
-    contour = CreateFrame("Frame", "SuperGuideBarreXPContour", cadre)
+    local contour = CreateFrame("Frame", nom and (nom .. "Contour") or nil, w)
+    w.contour = contour
     contour:SetPoint("TOPLEFT", barre, "TOPLEFT", -1, 1)
     contour:SetPoint("BOTTOMRIGHT", barre, "BOTTOMRIGHT", 1, -1)
     contour.bords = {}
@@ -208,28 +208,37 @@ function BarreXP.creer()
         contour.bords[i] = t
     end
 
+    local txt = w.txt
     txt.niveau = C.texte(barre, "texte", "texte")
     txt.niveau:SetPoint("LEFT", 6, 0)
     txt.centre = C.texte(barre, "texte", "texte")
     txt.centre:SetPoint("CENTER")
     txt.pct = C.texte(barre, "texte", "texte")
     txt.pct:SetPoint("RIGHT", -6, 0)
-    txt.hautG = C.texte(cadre, "texte", "texte")
-    txt.hautD = C.texte(cadre, "texte", "texte")
-    txt.bas1 = C.texte(cadre, "texte", "texte")
-    txt.bas2 = C.texte(cadre, "texte", "texte")
+    txt.hautG = C.texte(w, "texte", "texte")
+    txt.hautD = C.texte(w, "texte", "texte")
+    txt.bas1 = C.texte(w, "texte", "texte")
+    txt.bas2 = C.texte(w, "texte", "texte")
     for _, f in pairs(txt) do f:SetWordWrap(false) end
 
+    habiller(w)
+    contourTexte(w)
+    w:Hide()
+    return w
+end
+
+function BarreXP.creer()
+    etat.session = SuperGuideCharDB.sessionXP
+    cadre = construire("SuperGuideBarreXP")
+    ns.Deplacement.inscrire(cadre, L["Barre d'XP"], "barreXP", { "TOP", 0, -34 })
     masquerBlizzard()
-    habiller()
-    contourTexte()
     BarreXP.maj()
 end
 
 local function cacher(o, oui) if oui then o:Hide() else o:Show() end end
 
 -- Pose un segment à partir de la fraction « debut », sur « frac » de la barre.
-local function poser(tex, debut, frac, largeur)
+local function poser(barre, tex, debut, frac, largeur)
     if frac <= 0 then tex:Hide(); return end
     tex:ClearAllPoints()
     tex:SetPoint("TOPLEFT", barre, "TOPLEFT", debut * largeur, 0)
@@ -238,29 +247,31 @@ local function poser(tex, debut, frac, largeur)
     tex:Show()
 end
 
--- Aperçu : la page du module est ouverte, la barre se montre même coupée
--- ou au niveau maximum, avec une étiquette.
+-- Aperçu : la page du module est ouverte. La copie de la bannière se montre
+-- même barre coupée ou au niveau maximum ; la vraie garde son comportement.
 local apercu = false
 
--- Cadre montré dans la bannière d'aperçu du menu, et sa clé de position.
-function BarreXP.vitrine() return cadre, "barreXP" end
+-- Copie montrée dans la bannière d'aperçu du menu (la vraie reste en place).
+function BarreXP.vitrine()
+    if not copie then copie = construire(nil) end
+    BarreXP.maj()
+    return copie, "barreXP", true
+end
 
 function BarreXP.apercu(oui)
     apercu = oui and true or false
     BarreXP.maj()
 end
 
+-- La vraie barre se voit-elle ?
 function BarreXP.visible()
-    if apercu then return true end
     if not R("barreXP") then return false end
     return ns.Jeu.niveau() < ns.Jeu.niveauMax() or R("xpNiveauMax")
 end
 
-function BarreXP.maj()
-    if not cadre then return end
-    compter()
-    if not BarreXP.visible() then cadre:Hide(); return end
-
+-- Met le cadre w en forme avec les données du personnage.
+local function rendre(w)
+    local barre, remplissage, segs, txt = w.barre, w.remplissage, w.segs, w.txt
     local fr = GetLocale() == "frFR"
     local sep = fr and " " or ","
     local niveau, xp, max = ns.Jeu.niveau(), ns.Jeu.xp(), ns.Jeu.xpMax()
@@ -273,10 +284,10 @@ function BarreXP.maj()
     local vis = BarreXP.lignesVisibles(R("xpTextes"), auMax)
     local y, hauteur = BarreXP.disposition(vis)
     local largeur = R("barreXPLargeur")
-    cadre:SetSize(largeur, hauteur)
+    w:SetSize(largeur, hauteur)
     local lb = largeur
     barre:ClearAllPoints()
-    barre:SetPoint("TOPLEFT", cadre, "TOPLEFT", 0, y.barre)
+    barre:SetPoint("TOPLEFT", w, "TOPLEFT", 0, y.barre)
     barre:SetWidth(lb)
 
     -- Barre et segments.
@@ -285,10 +296,10 @@ function BarreXP.maj()
     local s = auMax and { xp = 1, termine = 0, enCours = 0, repos = 0 }
         or BarreXP.segments(xp, max, termine, enCours, R("xpBarreRepos") and repos or 0)
     if s.xp > 0 then remplissage:SetWidth(s.xp * lb); remplissage:Show() else remplissage:Hide() end
-    etincelle:SetShown(s.xp > 0 and s.xp < 1)
-    poser(segs.termine, s.xp, s.termine, lb)
-    poser(segs.enCours, s.xp + s.termine, s.enCours, lb)
-    poser(segs.repos, s.xp + s.termine + s.enCours, s.repos, lb)
+    w.etincelle:SetShown(s.xp > 0 and s.xp < 1)
+    poser(barre, segs.termine, s.xp, s.termine, lb)
+    poser(barre, segs.enCours, s.xp + s.termine, s.enCours, lb)
+    poser(barre, segs.repos, s.xp + s.termine + s.enCours, s.repos, lb)
 
     -- Textes de la barre.
     txt.niveau:SetText(L["Niveau %d"]:format(niveau))
@@ -305,13 +316,13 @@ function BarreXP.maj()
     end
 
     -- Ligne du haut : temps à ce niveau, temps de session.
-    local function ligne(f, yy) f:ClearAllPoints(); f:SetPoint("TOPLEFT", cadre, "TOPLEFT", 4, yy) end
+    local function ligne(f, yy) f:ClearAllPoints(); f:SetPoint("TOPLEFT", w, "TOPLEFT", 4, yy) end
     cacher(txt.hautG, not vis.haut)
     cacher(txt.hautD, not vis.haut)
     if vis.haut then
         ligne(txt.hautG, y.haut)
         txt.hautD:ClearAllPoints()
-        txt.hautD:SetPoint("TOPRIGHT", cadre, "TOPRIGHT", -4, y.haut)
+        txt.hautD:SetPoint("TOPRIGHT", w, "TOPRIGHT", -4, y.haut)
         local tn = BarreXP.tempsNiveau(etat.temps, GetTime())
         txt.hautG:SetText(L["Temps à ce niveau : %s"]:format(tn and BarreXP.duree(tn) or "--"))
         local debut = etat.session and etat.session.debut or maintenant
@@ -333,19 +344,38 @@ function BarreXP.maj()
     cacher(txt.bas2, not vis.bas2)
     if vis.bas2 then
         txt.bas2:ClearAllPoints()
-        txt.bas2:SetPoint("TOPRIGHT", cadre, "TOPRIGHT", -4, y.bas)
+        txt.bas2:SetPoint("TOPRIGHT", w, "TOPRIGHT", -4, y.bas)
         local parHeure, secondes = BarreXP.rythme(etat.session or BarreXP.nouvelleSession(maintenant), maintenant, max - xp)
         txt.bas2:SetText(L["Niveau suivant dans : %s (%s XP/h)"]:format(secondes and BarreXP.duree(secondes) or "--",
             BarreXP.nombre(parHeure, sep)))
     end
-
-    cadre:SetAlpha((apercu and not R("barreXP")) and 0.6 or 1)
-    cadre:Show()
+    w:Show()
 end
 
--- Minuteur d'une seconde : les durées avancent, seulement si la barre se voit.
+-- La vraie barre (si elle doit se voir) et la copie de l'aperçu, pâlie
+-- quand le module est coupé.
+function BarreXP.maj()
+    if not cadre then return end
+    compter()
+    if BarreXP.visible() then
+        rendre(cadre)
+        cadre:SetAlpha(1)
+    else
+        cadre:Hide()
+    end
+    if copie then
+        if apercu then
+            rendre(copie)
+            copie:SetAlpha(R("barreXP") and 1 or 0.6)
+        else
+            copie:Hide()
+        end
+    end
+end
+
+-- Minuteur d'une seconde : les durées avancent, seulement si une barre se voit.
 function BarreXP.tic()
-    if cadre and cadre:IsShown() then BarreXP.maj() end
+    if (cadre and cadre:IsShown()) or (copie and apercu) then BarreXP.maj() end
 end
 
 BarreXP.EVENEMENTS = {
@@ -381,8 +411,10 @@ local CLES = {
 function BarreXP.appliquer(cle, v)
     if not cadre then return end
     if cle == "xpMasquerBlizzard" or cle == "barreXP" then masquerBlizzard() end
-    if cle == "xpTexture" or cle == "xpContour" or cle:find("^xpCouleur") then habiller() end
-    if cle == "xpContourTexte" then contourTexte() end
+    for _, w in ipairs({ cadre, copie }) do
+        if cle == "xpTexture" or cle == "xpContour" or cle:find("^xpCouleur") then habiller(w) end
+        if cle == "xpContourTexte" then contourTexte(w) end
+    end
     if cle == "positions" then
         ns.Deplacement.reinitialiser()
     end

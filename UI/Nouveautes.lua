@@ -24,6 +24,17 @@ end
 
 -- { version, nom, texte, cle (réglage à cocher, facultatif), voir (facultatif) }
 Nouveautes.LISTE = {
+    { version = "1.0.23", nom = L["Swap layer : combien de swaps il te reste"], cle = "swapCompteur",
+      texte = L["Le jeu limite les changements de couche à 10 par heure. À côté des boutons du swap : tes swaps de l'heure, et l'attente quand c'est plein."],
+      voir = ouvrirMenu("module:swapGroupe") },
+    { version = "1.0.23", nom = L["Aperçus en direct"],
+      texte = L["En haut de chaque page du menu, l'aperçu est une copie : ton vrai élément reste à sa place et suit tes réglages en direct."] },
+    { version = "1.0.23", nom = L["Monnaies : ton or et tes monnaies"], cle = "monnaiesActif",
+      texte = L["Un widget à placer où tu veux : ton or, ton honneur, tes réals... Tu coches les monnaies, tu choisis la taille et la disposition."],
+      voir = ouvrirMenu("module:monnaies") },
+    { version = "1.0.23", nom = L["Météo et effets : la pluie s'en va"], cle = "meteoActif",
+      texte = L["Gouttes coupées, bruit de la pluie en option, et d'autres effets à couper un par un. Macro anti-brume (gourmande en FPS)."],
+      voir = ouvrirMenu("module:meteo") },
     { version = "1.0.21", nom = L["Auto Sets : ton équipement revient"],
       texte = L["Ton équipement normal revient toujours, même après une reconnexion en selle. Et Auto Sets marche maintenant dans toutes les langues du jeu."] },
     { version = "1.0.21", nom = L["Poubelle : choisis l'objet"], cle = "butinPoubelle",

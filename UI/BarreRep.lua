@@ -16,7 +16,9 @@ local H_BARRE = 22
 BarreRep.etat = {}
 local etat = BarreRep.etat
 
-local cadre, barre, remplissage, etincelle, contour, txt = nil, nil, nil, nil, nil, {}
+-- cadre : la vraie barre ; copie : la même, montrée dans la bannière
+-- d'aperçu du menu (construite à la demande).
+local cadre, copie
 local blizzardEnAttente = false
 local apercu = false
 
@@ -49,8 +51,9 @@ local function masquerBlizzard()
     blizzardEnAttente = ns.Jeu.barreJeuCachee(oui, "rep") == false
 end
 
-local function habiller()
-    remplissage:SetTexture(X().chemin(R("repTexture")))
+local function habiller(w)
+    local contour = w.contour
+    w.remplissage:SetTexture(X().chemin(R("repTexture")))
     local c = R("repContour")
     if c == "aucun" then contour:Hide(); return end
     local r, g, b = X().couleurContour(c)
@@ -58,10 +61,10 @@ local function habiller()
     contour:Show()
 end
 
-local function contourTexte()
+local function contourTexte(w)
     local nom = R("repContourTexte")
     local d = X().drapeauPolice(nom)
-    for _, fs in pairs(txt) do
+    for _, fs in pairs(w.txt) do
         local police, taille = fs:GetFont()
         if police and taille then fs:SetFont(police, taille, d) end
         fs:SetShadowColor(0, 0, 0, 1)
@@ -69,7 +72,8 @@ local function contourTexte()
     end
 end
 
-local function teinter(f)
+local function teinter(w, f)
+    local remplissage = w.remplissage
     local r, g, b = BarreRep.couleur(f, FACTION_BAR_COLORS)
     local r1, g1, b1, r2, g2, b2 = X().degradeDe(r, g, b)
     if remplissage.SetGradient and CreateColor then
@@ -81,33 +85,36 @@ local function teinter(f)
     end
 end
 
-function BarreRep.creer()
+-- Fabrique une barre (la vraie avec son nom, la copie de l'aperçu sans nom).
+local function construire(nom)
     local T, C = ns.Theme, ns.Controles
-    etat.session = SuperGuideCharDB.sessionRep
+    local w = CreateFrame("Frame", nom, UIParent)
+    w.txt = {}
+    w:SetClampedToScreen(true)
+    w:SetSize(R("barreRepLargeur"), H_BARRE)
 
-    cadre = CreateFrame("Frame", "SuperGuideBarreRep", UIParent)
-    cadre:SetClampedToScreen(true)
-    cadre:SetSize(R("barreRepLargeur"), H_BARRE)
-    ns.Deplacement.inscrire(cadre, L["Barre de réputation"], "barreRep", { "TOP", 0, -100 })
-
-    barre = CreateFrame("Frame", nil, cadre)
+    local barre = CreateFrame("Frame", nil, w)
+    w.barre = barre
     barre:SetHeight(H_BARRE)
     local fond = barre:CreateTexture(nil, "BACKGROUND")
     fond:SetAllPoints()
     fond:SetColorTexture(T.rgb("panneau"))
     fond:SetAlpha(0.9)
 
-    remplissage = barre:CreateTexture(nil, "BORDER")
+    local remplissage = barre:CreateTexture(nil, "BORDER")
+    w.remplissage = remplissage
     remplissage:SetTexture(BLANC)
     remplissage:SetPoint("TOPLEFT")
     remplissage:SetPoint("BOTTOMLEFT")
-    etincelle = barre:CreateTexture(nil, "ARTWORK", nil, 2)
+    local etincelle = barre:CreateTexture(nil, "ARTWORK", nil, 2)
+    w.etincelle = etincelle
     etincelle:SetColorTexture(1, 1, 1, 0.85)
     etincelle:SetWidth(2)
     etincelle:SetPoint("TOP", remplissage, "TOPRIGHT")
     etincelle:SetPoint("BOTTOM", remplissage, "BOTTOMRIGHT")
 
-    contour = CreateFrame("Frame", "SuperGuideBarreRepContour", cadre)
+    local contour = CreateFrame("Frame", nom and (nom .. "Contour") or nil, w)
+    w.contour = contour
     contour:SetPoint("TOPLEFT", barre, "TOPLEFT", -1, 1)
     contour:SetPoint("BOTTOMRIGHT", barre, "BOTTOMRIGHT", 1, -1)
     contour.bords = {}
@@ -119,24 +126,37 @@ function BarreRep.creer()
         contour.bords[i] = t
     end
 
+    local txt = w.txt
     txt.nom = C.texte(barre, "texte", "texte")
     txt.nom:SetPoint("LEFT", 6, 0)
     txt.centre = C.texte(barre, "texte", "texte")
     txt.centre:SetPoint("CENTER")
     txt.rang = C.texte(barre, "texte", "texte")
     txt.rang:SetPoint("RIGHT", -6, 0)
-    txt.bas1 = C.texte(cadre, "texte", "texte")
-    txt.bas2 = C.texte(cadre, "texte", "texte")
+    txt.bas1 = C.texte(w, "texte", "texte")
+    txt.bas2 = C.texte(w, "texte", "texte")
     for _, f in pairs(txt) do f:SetWordWrap(false) end
 
+    habiller(w)
+    contourTexte(w)
+    w:Hide()
+    return w
+end
+
+function BarreRep.creer()
+    etat.session = SuperGuideCharDB.sessionRep
+    cadre = construire("SuperGuideBarreRep")
+    ns.Deplacement.inscrire(cadre, L["Barre de réputation"], "barreRep", { "TOP", 0, -100 })
     masquerBlizzard()
-    habiller()
-    contourTexte()
     BarreRep.maj()
 end
 
--- Cadre montré dans la bannière d'aperçu du menu, et sa clé de position.
-function BarreRep.vitrine() return cadre, "barreRep" end
+-- Copie montrée dans la bannière d'aperçu du menu (la vraie reste en place).
+function BarreRep.vitrine()
+    if not copie then copie = construire(nil) end
+    BarreRep.maj()
+    return copie, "barreRep", true
+end
 
 function BarreRep.apercu(oui)
     apercu = oui and true or false
@@ -145,17 +165,9 @@ end
 
 local function montrer(o, oui) if oui then o:Show() else o:Hide() end end
 
-function BarreRep.maj()
-    if not cadre then return end
-    local f = ns.Jeu.factionSuivie()
-    compter(f)
-    -- Mode photo sans faction suivie : une faction d'exemple.
-    if not f and BarreRep.photo then
-        f = { nom = L["Aube d'argent"], reaction = 6, min = 9000, max = 21000, valeur = 17350,
-              rang = _G.FACTION_STANDING_LABEL6 or "Honored" }
-    end
-    if not apercu and (not R("barreRep") or not f) then cadre:Hide(); return end
-
+-- Met le cadre w en forme pour la faction f (nil : la marche à suivre).
+local function rendre(w, f)
+    local barre, remplissage, txt = w.barre, w.remplissage, w.txt
     local fr = GetLocale() == "frFR"
     local sep = fr and " " or ","
     local largeur = R("barreRepLargeur")
@@ -164,23 +176,23 @@ function BarreRep.maj()
 
     local vis = BarreRep.lignesVisibles(R("repTextes"), auMax or not f)
     local y, hauteur = X().disposition(vis)
-    cadre:SetSize(largeur, hauteur)
+    w:SetSize(largeur, hauteur)
     barre:ClearAllPoints()
-    barre:SetPoint("TOPLEFT", cadre, "TOPLEFT", 0, y.barre)
+    barre:SetPoint("TOPLEFT", w, "TOPLEFT", 0, y.barre)
     barre:SetWidth(largeur)
 
     if not f then
         -- Aperçu sans faction suivie : la marche à suivre.
         remplissage:Hide()
-        etincelle:Hide()
+        w.etincelle:Hide()
         txt.nom:SetText("")
         txt.rang:SetText("")
         txt.centre:SetText(L["Aucune faction suivie : Réputation > « Afficher en barre d'XP »"])
     else
-        teinter(f)
+        teinter(w, f)
         local frac = fait / total
         if frac > 0 then remplissage:SetWidth(frac * largeur); remplissage:Show() else remplissage:Hide() end
-        etincelle:SetShown(frac > 0 and frac < 1)
+        w.etincelle:SetShown(frac > 0 and frac < 1)
         txt.nom:SetText(f.nom)
         local rang = f.parangon and L["Parangon"] or f.rang
         if auMax then
@@ -199,25 +211,47 @@ function BarreRep.maj()
     local session = etat.session or X().nouvelleSession(maintenant)
     if vis.bas1 then
         txt.bas1:ClearAllPoints()
-        txt.bas1:SetPoint("TOPLEFT", cadre, "TOPLEFT", 4, y.bas)
+        txt.bas1:SetPoint("TOPLEFT", w, "TOPLEFT", 4, y.bas)
         txt.bas1:SetText(L["Session : +%s (%s)"]:format(X().nombre(session.gagne or 0, sep),
             X().duree(maintenant - (session.debut or maintenant))))
     end
     if vis.bas2 then
         txt.bas2:ClearAllPoints()
-        txt.bas2:SetPoint("TOPRIGHT", cadre, "TOPRIGHT", -4, y.bas)
+        txt.bas2:SetPoint("TOPRIGHT", w, "TOPRIGHT", -4, y.bas)
         local parHeure, secondes = X().rythme(session, maintenant, total - fait)
         txt.bas2:SetText(L["Rang suivant dans : %s (%s rép/h)"]:format(secondes and X().duree(secondes) or "--",
             X().nombre(parHeure, sep)))
     end
+    w:Show()
+end
 
-    cadre:SetAlpha((apercu and (not R("barreRep") or not f)) and 0.6 or 1)
-    cadre:Show()
+-- La vraie barre (module allumé et faction suivie) et la copie de l'aperçu,
+-- pâlie quand le module est coupé ou sans faction suivie.
+function BarreRep.maj()
+    if not cadre then return end
+    local f = ns.Jeu.factionSuivie()
+    compter(f)
+    if R("barreRep") and f then
+        rendre(cadre, f)
+        cadre:SetAlpha(1)
+    else
+        cadre:Hide()
+    end
+    if not copie then return end
+    if not apercu then copie:Hide(); return end
+    local exemple = f
+    -- Mode photo sans faction suivie : une faction d'exemple (copie seulement).
+    if not exemple and BarreRep.photo then
+        exemple = { nom = L["Aube d'argent"], reaction = 6, min = 9000, max = 21000, valeur = 17350,
+                    rang = _G.FACTION_STANDING_LABEL6 or "Honored" }
+    end
+    rendre(copie, exemple)
+    copie:SetAlpha((not R("barreRep") or not exemple) and 0.6 or 1)
 end
 
 -- Minuteur : la durée de session et le rythme avancent.
 function BarreRep.tic()
-    if cadre and cadre:IsShown() then BarreRep.maj() end
+    if (cadre and cadre:IsShown()) or (copie and apercu) then BarreRep.maj() end
 end
 
 BarreRep.EVENEMENTS = { "UPDATE_FACTION", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_ENABLED" }
@@ -240,7 +274,9 @@ local CLES = { barreRep = true, barreRepLargeur = true, repTextes = true, repMas
 function BarreRep.appliquer(cle)
     if not cadre then return end
     if cle == "repMasquerBlizzard" or cle == "barreRep" then masquerBlizzard() end
-    if cle == "repTexture" or cle == "repContour" then habiller() end
-    if cle == "repContourTexte" then contourTexte() end
+    for _, w in ipairs({ cadre, copie }) do
+        if cle == "repTexture" or cle == "repContour" then habiller(w) end
+        if cle == "repContourTexte" then contourTexte(w) end
+    end
     if CLES[cle] or cle == "positions" then BarreRep.maj() end
 end

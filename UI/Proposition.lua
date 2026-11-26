@@ -1,5 +1,7 @@
 -- Fenêtre « Équiper [X] ? » Oui / Non : une proposition d'amélioration à la
 -- fois (la file vit dans Core/Equipement.lua). Rien ne s'équipe sans clic.
+-- Aperçu : une copie (même construction) dans la bannière du menu, avec un
+-- exemple et des boutons sans effet ; la vraie fenêtre reste telle quelle.
 
 local ADDON, ns = ...
 
@@ -10,61 +12,71 @@ local L = ns.L or setmetatable({}, { __index = function(_, k) return k end })
 
 local LARGEUR, HAUTEUR = 320, 92
 
-local cadre, titre, ligne, courante
+local cadre, copie, courante
+local apercu = false
+
+-- Fabrique une fenêtre : fond, titre, ligne, boutons Non / Oui, compteur.
+-- Sans rappels (la copie) : rien ne réagit, les boutons sont des dessins.
+local function construire(nom, surOui, surNon)
+    local T, C = ns.Theme, ns.Controles
+    local w = CreateFrame("Frame", nom, UIParent)
+    w:SetSize(LARGEUR, HAUTEUR)
+    w:SetFrameStrata("FULLSCREEN_DIALOG")
+    T.fond(w, "panneau", 0.96, "bordFort")
+
+    w.zone = CreateFrame("Frame", nil, w)
+    w.zone:SetPoint("TOPLEFT", 12, -10)
+    w.zone:SetPoint("TOPRIGHT", -12, -10)
+    w.zone:SetHeight(18)
+    w.titre = C.texte(w.zone, "texte", "texte")
+    w.titre:SetAllPoints()
+    w.titre:SetWordWrap(false)
+
+    w.ligne = C.texte(w, "petit", "texteDoux")
+    w.ligne:SetPoint("TOPLEFT", w.zone, "BOTTOMLEFT", 0, -6)
+    w.ligne:SetPoint("TOPRIGHT", w.zone, "BOTTOMRIGHT", 0, -6)
+    w.ligne:SetWordWrap(false)
+
+    local non = C.bouton(w, L["Non"], "texteDoux", surNon, 90)
+    non:SetPoint("BOTTOMRIGHT", -12, 10)
+    local oui = C.bouton(w, L["Oui"], "vert", surOui, 90)
+    oui:SetPoint("RIGHT", non, "LEFT", -8, 0)
+    if not (surOui or surNon) then non:EnableMouse(false); oui:EnableMouse(false) end
+
+    -- « +2 en attente » : d'autres fenêtres suivent.
+    w.enAttente = C.texte(w, "petit", "accent")
+    w.enAttente:SetPoint("BOTTOMLEFT", 12, 14)
+    w:Hide()
+    return w
+end
 
 function Proposition.creer()
-    local T, C = ns.Theme, ns.Controles
-    cadre = CreateFrame("Frame", "SuperGuideProposition", UIParent)
-    cadre:SetSize(LARGEUR, HAUTEUR)
+    cadre = construire("SuperGuideProposition",
+        function() ns.Equipement.repondre(true) end,
+        function() ns.Equipement.repondre(false) end)
     cadre:SetPoint("TOP", UIParent, "TOP", 0, -160)
-    cadre:SetFrameStrata("FULLSCREEN_DIALOG")
     cadre:EnableMouse(true)
     if ns.Deplacement then
         ns.Deplacement.inscrire(cadre, L["Proposition d'équipement"], "proposition", { "TOP", 0, -160 })
     end
-    T.fond(cadre, "panneau", 0.96, "bordFort")
 
     -- Titre : survol = info-bulle de l'objet proposé.
-    local zone = CreateFrame("Frame", nil, cadre)
-    zone:SetPoint("TOPLEFT", 12, -10)
-    zone:SetPoint("TOPRIGHT", -12, -10)
-    zone:SetHeight(18)
+    local zone = cadre.zone
     zone:EnableMouse(true)
-    titre = C.texte(zone, "texte", "texte")
-    titre:SetAllPoints()
-    titre:SetWordWrap(false)
     zone:SetScript("OnEnter", function(self)
-        if not courante or Proposition.enApercu() then return end
+        if not courante then return end
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:SetHyperlink(courante.objet.lien)
         GameTooltip:Show()
     end)
     zone:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    ligne = C.texte(cadre, "petit", "texteDoux")
-    ligne:SetPoint("TOPLEFT", zone, "BOTTOMLEFT", 0, -6)
-    ligne:SetPoint("TOPRIGHT", zone, "BOTTOMRIGHT", 0, -6)
-    ligne:SetWordWrap(false)
-
-    local non = C.bouton(cadre, L["Non"], "texteDoux", function()
-        if not Proposition.enApercu() then ns.Equipement.repondre(false) end
-    end, 90)
-    non:SetPoint("BOTTOMRIGHT", -12, 10)
-    local oui = C.bouton(cadre, L["Oui"], "vert", function()
-        if not Proposition.enApercu() then ns.Equipement.repondre(true) end
-    end, 90)
-    oui:SetPoint("RIGHT", non, "LEFT", -8, 0)
-
-    -- « +2 en attente » : d'autres fenêtres suivent.
-    local enAttente = C.texte(cadre, "petit", "accent")
-    enAttente:SetPoint("BOTTOMLEFT", 12, 14)
     ns.File.ecouter(function()
         local n = ns.File.enAttente()
-        enAttente:SetText(n > 0 and L["+%d en attente"]:format(n) or "")
+        cadre.enAttente:SetText(n > 0 and L["+%d en attente"]:format(n) or "")
     end)
     -- Fermée (oui, non, objet parti) : la fenêtre suivante prend la place.
-    cadre:SetScript("OnHide", function() if not enApercu then ns.File.fini("proposition") end end)
-    cadre:Hide()
+    cadre:SetScript("OnHide", function() ns.File.fini("proposition") end)
 end
 
 -- p = { objet, emplacement, remplace, gain } ; nil cache la fenêtre.
@@ -75,39 +87,40 @@ function Proposition.pourcent(gain)
     return (t:gsub("[%.,]0( ?%%)$", "%1"))
 end
 
-local function afficher(p)
-    courante = p
-    titre:SetText(L["Équiper %s ?"]:format(p.objet.lien))
+-- Met le cadre w en forme avec la proposition p, et le montre.
+local function rendre(w, p)
+    w.titre:SetText(L["Équiper %s ?"]:format(p.objet.lien))
     local pct = Proposition.pourcent(p.gain or 0)
     if p.remplace then
-        ligne:SetText(L["+%s · remplace %s"]:format(pct, p.remplace.lien))
+        w.ligne:SetText(L["+%s · remplace %s"]:format(pct, p.remplace.lien))
     else
-        ligne:SetText(L["+%s · emplacement vide"]:format(pct))
+        w.ligne:SetText(L["+%s · emplacement vide"]:format(pct))
     end
-    cadre:Show()
+    w:Show()
 end
 
--- Aperçu (page du module) : la fenêtre avec un exemple, boutons sans effet.
+local function afficher(p)
+    courante = p
+    rendre(cadre, p)
+end
+
+-- Aperçu (page du module) : la copie avec un exemple.
 local EXEMPLE = { objet = { lien = "|cff1eff00[Arc long renforcé]|r" }, gain = 0.124,
                   remplace = { lien = "|cffffffff[Arc court]|r" } }
-local enApercu, avantApercu = false, nil
 
-function Proposition.vitrine() return cadre, "proposition" end
-
-function Proposition.apercu(oui)
-    if not cadre then return end
-    if oui then
-        avantApercu = cadre:IsShown() and courante or nil
-        enApercu = true
-        afficher(EXEMPLE)
-    else
-        enApercu = false
-        if avantApercu then afficher(avantApercu) else courante = nil; cadre:Hide() end
-        avantApercu = nil
-    end
+-- Copie montrée dans la bannière d'aperçu du menu (la vraie reste en place).
+function Proposition.vitrine()
+    if not copie then copie = construire(nil) end
+    return copie, "proposition", true
 end
 
-function Proposition.enApercu() return enApercu end
+function Proposition.apercu(oui)
+    apercu = oui and true or false
+    if not copie then return end
+    if apercu then rendre(copie, EXEMPLE) else copie:Hide() end
+end
+
+function Proposition.enApercu() return apercu end
 
 -- Passe par la file d'attente des fenêtres : une seule question à la fois.
 function Proposition.montrer(p)

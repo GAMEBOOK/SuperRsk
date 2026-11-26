@@ -34,8 +34,9 @@ local PAGES = {
     { "swapGroupe", "Swap Layer in group", "Multiboxing: leave, swap and invite in one click." },
     { "spyPing", "Spy Ping", "Spot and ping enemies for your group." },
     { "vh", "Honorable Kills", "Your honorable kills and your guild's ranking." },
+    { "monnaies", "Currencies", "Your gold and the currencies you tick, anywhere on screen." },
     { "boostFPS", "Boost FPS", "More FPS and a sharper picture, in one click." },
-    { "meteo", "Weather and Fog", "No rain, no fog, a clear view." },
+    { "meteo", "Weather and Effects", "No raindrops or snow, less fog." },
     { "tsquid", "Tsquid Area", "A lightsaber sound on critical hits." },
 }
 local FONDS = { 0, 0.72, 1 }   -- opacité du fond : le jeu, sombre, noir

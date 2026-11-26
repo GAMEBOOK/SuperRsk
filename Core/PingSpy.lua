@@ -550,24 +550,69 @@ function VH.basculerListe()
     end
 end
 
+-- Aperçu : une copie (même construction, sans liste ni infobulle) dans la
+-- bannière du menu, avec mes chiffres ; le vrai widget reste à sa place.
 local apercuVH = false
+local copieVH
 
-function VH.vitrine() return widget, "vh" end
+-- L'icône PvP et les deux nombres (total, « +jour »), sans les clics.
+local function construireVH(nom)
+    local T = ns.Theme
+    local w = CreateFrame("Button", nom, UIParent)
+    w:SetSize(110, 28)
+    w:SetFrameStrata("MEDIUM")
+    w:SetClampedToScreen(true)
+    T.fond(w, "panneau", 0.92, "bordFort")
+    local ic = w:CreateTexture(nil, "ARTWORK")
+    ic:SetSize(26, 26)
+    ic:SetPoint("LEFT", 5, -1)
+    local tex, badge = icone()
+    ic:SetTexture(tex)
+    if badge then ic:SetTexCoord(0, 0.625, 0, 0.625) else ic:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+    w.texte = w:CreateFontString(nil, "OVERLAY")
+    w.texte:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 15, "")
+    w.texte:SetTextColor(T.rgb("texte"))
+    w.texte:SetPoint("LEFT", ic, "RIGHT", 5, 1)
+    w.jour = w:CreateFontString(nil, "OVERLAY")
+    w.jour:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 11, "")
+    w.jour:SetPoint("LEFT", w.texte, "RIGHT", 6, 0)
+    return w
+end
+
+-- Met le cadre w en forme avec mes chiffres m.
+local function rendreVH(w, m)
+    w.texte:SetText(VH.nombre(m.total))
+    local suffixe = m.jour > 0 and ("|cff6fdc6f+" .. VH.nombre(m.jour) .. "|r") or ""
+    w.jour:SetText(suffixe)
+    w:SetWidth(36 + math.max(w.texte:GetStringWidth() or 30, 20) + (m.jour > 0 and ((w.jour:GetStringWidth() or 0) + 6) or 0) + 10)
+    w:Show()
+end
+
+-- Copie montrée dans la bannière d'aperçu du menu (le vrai reste en place).
+function VH.vitrine()
+    if not copieVH then
+        copieVH = construireVH(nil)
+        copieVH:EnableMouse(false)
+        copieVH:Hide()
+        if apercuVH then rendreVH(copieVH, VH.moi()) end
+    end
+    return copieVH, "vh", true
+end
 
 function VH.apercu(oui)
     apercuVH = oui and true or false
     VH.rafraichir()
 end
 
+-- Le vrai widget (visible si le module est allumé) et la copie de l'aperçu.
 function VH.rafraichir()
+    local m
+    if copieVH then
+        if apercuVH then m = VH.moi(); rendreVH(copieVH, m) else copieVH:Hide() end
+    end
     if not widget then return end
-    if ns.Reglages.get("vhActif") == false and not apercuVH then widget:Hide(); return end
-    local m = VH.moi()
-    widget.texte:SetText(VH.nombre(m.total))
-    local suffixe = m.jour > 0 and ("|cff6fdc6f+" .. VH.nombre(m.jour) .. "|r") or ""
-    widget.jour:SetText(suffixe)
-    widget:SetWidth(36 + math.max(widget.texte:GetStringWidth() or 30, 20) + (m.jour > 0 and ((widget.jour:GetStringWidth() or 0) + 6) or 0) + 10)
-    widget:Show()
+    if ns.Reglages.get("vhActif") == false then widget:Hide(); return end
+    rendreVH(widget, m or VH.moi())
     if GameTooltip:IsOwned(widget) then infobulle(widget) end
     if liste and liste:IsShown() then remplirListe() end
 end
@@ -616,27 +661,9 @@ function VH.creer()
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
         pcall(C_ChatInfo.RegisterAddonMessagePrefix, VH.PREFIXE)
     end
-    local T = ns.Theme
-    widget = CreateFrame("Button", "SuperGuideVH", UIParent)
-    widget:SetSize(110, 28)
-    widget:SetFrameStrata("MEDIUM")
+    widget = construireVH("SuperGuideVH")
     widget:SetMovable(true)
-    widget:SetClampedToScreen(true)
     widget:RegisterForDrag("LeftButton")
-    T.fond(widget, "panneau", 0.92, "bordFort")
-    local ic = widget:CreateTexture(nil, "ARTWORK")
-    ic:SetSize(26, 26)
-    ic:SetPoint("LEFT", 5, -1)
-    local tex, badge = icone()
-    ic:SetTexture(tex)
-    if badge then ic:SetTexCoord(0, 0.625, 0, 0.625) else ic:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
-    widget.texte = widget:CreateFontString(nil, "OVERLAY")
-    widget.texte:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 15, "")
-    widget.texte:SetTextColor(T.rgb("texte"))
-    widget.texte:SetPoint("LEFT", ic, "RIGHT", 5, 1)
-    widget.jour = widget:CreateFontString(nil, "OVERLAY")
-    widget.jour:SetFont(T.MEDIA .. "Polices\\Archivo-BoldCondensed.ttf", 11, "")
-    widget.jour:SetPoint("LEFT", widget.texte, "RIGHT", 6, 0)
     placer()
     widget:RegisterForClicks("LeftButtonUp")
     widget:SetScript("OnClick", function(self)

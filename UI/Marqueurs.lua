@@ -118,6 +118,48 @@ local function aideInviter()
     return L["Invite ta team, qui accepte seule :"] .. "\n" .. table.concat(noms, "\n")
 end
 
+-- « 12 min », « 45 s » : temps avant la nouvelle heure de swaps.
+local function duree(s)
+    s = math.max(0, math.floor(s or 0))
+    if s < 60 then return ("%d s"):format(s) end
+    return ("%d min"):format(math.ceil(s / 60))
+end
+
+-- Compteur de swaps à droite des boutons : « 3/10 », en orange à partir de
+-- 7, en rouge à 10 avec le temps d'attente.
+local function majCompteur(w, c)
+    local t = w.compteur
+    if not t then return end
+    if R("swapCompteur") == false or not c then t:Hide(); return end
+    local texte = c.utilises .. "/" .. c.max
+    local couleur = "texteDoux"
+    if c.attente > 0 then
+        texte, couleur = texte .. "  " .. duree(c.attente), "rouge"
+    elseif c.utilises >= c.max - 3 then
+        couleur = "orange"
+    elseif c.utilises > 0 then
+        couleur = "texte"
+    end
+    t:SetText(texte)
+    t:SetTextColor(ns.Theme.rgb(couleur))
+    t:Show()
+end
+
+-- Ligne de l'infobulle : swaps de l'heure et nouvelle heure.
+local function ligneCompteur()
+    if R("swapCompteur") == false then return end
+    local c = Swap.compteur()
+    local l1 = L["Swaps cette heure : %d sur %d."]:format(c.utilises, c.max)
+    if c.attente > 0 then
+        l1 = l1 .. " " .. L["Prochain swap possible dans %s."]:format(duree(c.attente))
+    elseif c.fin then
+        l1 = l1 .. " " .. L["Compteur remis à zéro dans %s."]:format(duree(c.fin))
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(l1, 1, 0.82, 0, true)
+    GameTooltip:AddLine(L["Le jeu limite les changements de couche (10 par heure, mesuré par LayerSwap, qui compte tes swaps)."], 0.6, 0.6, 0.6, true)
+end
+
 local function aide(b, titre, texte)
     b:HookScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
@@ -125,6 +167,7 @@ local function aide(b, titre, texte)
         local t = self.aide or texte
         if type(t) == "function" then t = t() end
         GameTooltip:AddLine(t, 1, 1, 1, true)
+        if self == b1 then ligneCompteur() end
         GameTooltip:AddLine(L["Glisser : déplacer."], 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end)
@@ -148,32 +191,40 @@ local function brancherLayerSwap()
     end
 end
 
-local apercuSwap = false
+local copieSwap, apercuSwap = nil, false
+local construireBarre
 
-function Swap.vitrine() return barre, "swap" end
+-- Copie montrée dans la bannière d'aperçu du menu (la vraie reste en place) :
+-- purement visuelle, boutons ordinaires sans effet ni souris.
+function Swap.vitrine()
+    if not copieSwap then copieSwap = construireBarre(nil, false) end
+    return copieSwap, "swap", true
+end
 
+-- La copie montre l'exemple (Swap layer puis Quitter le groupe, en boucle) ;
+-- la vraie barre n'est pas touchée.
 function Swap.apercu(oui)
-    if not barre then return end
     apercuSwap = oui and true or false
-    b1:EnableMouse(not apercuSwap)
-    b2:EnableMouse(not apercuSwap)
+    if not copieSwap then return end
+    local w = copieSwap
     if apercuSwap then
-        barre:Show()
+        w:Show()
         local debut = GetTime()
-        barre:SetScript("OnUpdate", function()
+        w:SetScript("OnUpdate", function()
             local quitter = math.floor((GetTime() - debut) / 1.6) % 2 == 0
-            b1.texte:SetText(quitter and TEXTES.quitter or TEXTES.demander)
-            b2.texte:SetText(L["Inviter la team (%d)"]:format(math.max(2, Swap.nombreAlts())))
-            b2:SetAlpha(1)
+            w.b1.texte:SetText(quitter and TEXTES.quitter or TEXTES.demander)
+            w.b2.texte:SetText(L["Inviter la team (%d)"]:format(math.max(2, Swap.nombreAlts())))
+            w.b2:SetAlpha(1)
+            majCompteur(w, { utilises = 3, max = Swap.LIMITE, attente = 0 })
         end)
     else
-        barre:SetScript("OnUpdate", nil)
-        Swap.rafraichir()
+        w:SetScript("OnUpdate", nil)
+        w:Hide()
     end
 end
 
 function Swap.rafraichir()
-    if not barre or apercuSwap then return end
+    if not barre then return end
     brancherLayerSwap()
     if R("swapGroupeActif") == false or not Swap.layerSwap() then
         if not InCombatLockdown() then barre:Hide() end
@@ -186,6 +237,7 @@ function Swap.rafraichir()
     b2.texte:SetText(n > 0 and L["Inviter la team (%d)"]:format(n) or L["Inviter la team"])
     b2.titre, b2.aide = L["Inviter la team"], aideInviter
     b2:SetAlpha(n > 0 and 1 or 0.5)
+    majCompteur(barre, Swap.compteur())
     if not InCombatLockdown() then barre:Show() end
 end
 
@@ -231,28 +283,53 @@ local function glissable(b)
     end)
 end
 
+-- Fabrique une barre à deux boutons. Vraie (reelle) : b1 lance le swap, b2
+-- est sécurisé et nommé (sa touche le clique). Copie : deux boutons
+-- ordinaires, sans rappel ni souris, rien de sécurisé.
+construireBarre = function(nom, reelle)
+    local C = ns.Controles
+    local w = CreateFrame("Frame", nom, UIParent)
+    w:SetSize(296, 24)
+    w:SetClampedToScreen(true)
+    w:SetFrameStrata("HIGH")
+    w.b1 = C.bouton(w, TEXTES.demander, "accent", reelle and function() Swap.cliquer() end or nil, 128)
+    w.b1:SetPoint("LEFT")
+    if reelle then
+        -- Nommé : sa touche (Raccourcis > SuperRsk) le clique, même barre cachée.
+        w.b2 = boutonSecurise(w, "SuperGuideSwapValider", "vert", 160)
+    else
+        w.b2 = C.bouton(w, "", "vert", nil, 160)
+        w.b1:EnableMouse(false)
+        w.b2:EnableMouse(false)
+    end
+    w.b2:SetPoint("LEFT", w.b1, "RIGHT", 8, 0)
+    w.compteur = C.texte(w, "petit", "texteDoux")
+    w.compteur:SetPoint("LEFT", w.b2, "RIGHT", 8, 0)
+    w:Hide()
+    return w
+end
+
 function Swap.creer()
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
         pcall(C_ChatInfo.RegisterAddonMessagePrefix, Swap.PREFIXE)
     end
     Swap.charger()
-    local C = ns.Controles
-    barre = CreateFrame("Frame", "SuperGuideSwapBarre", UIParent)
-    barre:SetSize(296, 24)
+    barre = construireBarre("SuperGuideSwapBarre", true)
     barre:SetMovable(true)
-    barre:SetClampedToScreen(true)
-    barre:SetFrameStrata("HIGH")
     placer()
-    b1 = C.bouton(barre, TEXTES.demander, "accent", function() Swap.cliquer() end, 128)
-    b1:SetPoint("LEFT")
-    -- Nommé : sa touche (Raccourcis > SuperRsk) le clique, même barre cachée.
-    b2 = boutonSecurise(barre, "SuperGuideSwapValider", "vert", 160)
-    b2:SetPoint("LEFT", b1, "RIGHT", 8, 0)
+    b1, b2 = barre.b1, barre.b2
     b2:HookScript("OnClick", function() Swap.cliquerValider() end)
     aide(b1, TEXTES.demander, AIDES.demander)
     aide(b2, L["Inviter la team"], aideInviter)
     glissable(b1); glissable(b2)
-    barre:Hide()
+    -- Le compteur suit l'heure qui passe (une fois par seconde).
+    local ecoule = 0
+    barre:SetScript("OnUpdate", function(_, dt)
+        ecoule = ecoule + (dt or 0)
+        if ecoule < 1 then return end
+        ecoule = 0
+        majCompteur(barre, Swap.compteur())
+    end)
 
     -- Touches (Raccourcis > SuperRsk), même barre cachée.
     local t = CreateFrame("Button", "SuperGuideSwapGroupe", UIParent)
@@ -266,5 +343,5 @@ function Swap.creer()
 end
 
 function Swap.appliquer(cle)
-    if cle == "swapGroupeActif" then Swap.rafraichir() end
+    if cle == "swapGroupeActif" or cle == "swapCompteur" then Swap.rafraichir() end
 end

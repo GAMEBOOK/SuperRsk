@@ -304,7 +304,7 @@ function Deplacement.ouvert() return actif end
 -- cadre vide à placer pour une option coupée ne fait que dérouter).
 Deplacement.ALLUME = {
     barreXP = "barreXP", barreRep = "barreRep", butin = "butinListe", swap = "swapGroupeActif", poubelle = "butinPoubelle",
-    proposition = "proposerEquipement", barreTir = "tirActif", usure = "usureActif", vh = "vhActif",
+    proposition = "proposerEquipement", barreTir = "tirActif", usure = "usureActif", vh = "vhActif", monnaies = "monnaiesActif",
 }
 
 function Deplacement.visible(cle)

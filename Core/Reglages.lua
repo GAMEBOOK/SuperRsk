@@ -30,9 +30,11 @@ Reglages.DEFAUTS = {
     volsCarte = true, volsAvecConnus = true,
     deplGrille = true, deplAimant = true,
     marqueursActif = true, marqueurMoi = 1,
-    swapGroupeActif = true, swapButinLibre = true,
+    swapGroupeActif = true, swapButinLibre = true, swapCompteur = true,
     spyPing = true, spyPingType = "Warning", spyWay = false, spyDetection = true,
     vhActif = true, vhGuilde = true, vhTop = 10, vhMonde = true,
+    monnaiesActif = false, monnaieOr = true, monnaiesSens = "colonne", monnaiesTaille = 1, monnaiesFond = 0.92,
+    monnaiesIcones = true, monnaiesNoms = false, monnaiesZero = true, monnaiesOrFormat = "complet",
     tsquidActif = false, tsquidCritSon = true, tsquidCanal = "Master",
     softInteract = true,
     pecheActif = true, pecheTouche = "SPACE", pecheTenueTouche = "", pecheSortir = true, pecheAppat = true, pecheWidget = true,
@@ -40,7 +42,8 @@ Reglages.DEFAUTS = {
     marchandActif = true, marchandVendre = true, marchandReparer = true, marchandGuilde = false, marchandMessage = true,
     usureActif = true, usureSeuil = 20, usureStyle = "icone", usureTaille = 1, usureSon = true, usureMessage = true,
     usureToujours = false, usureNom = false, usureFond = 0.92, usureLibelle = true, usureTexteLibelle = "",
-    boostFPS = false, meteoActif = false, sansMeteo = true, sansBrouillard = true,
+    boostFPS = false, meteoActif = false, sansMeteo = true, sansBrouillard = true, sansSonMeteo = false,
+    fxRayons = false, fxHalo = false, fxMort = false, fxNether = false, fxSecousses = false, fxFlash = false, fxEmpreintes = false, fxPas = false, fxErreurs = false, fxMusique = false, fxEmotes = false,
 }
 
 -- Types : « case » (oui/non, « inverse » si la clé dit l'inverse du libellé),
@@ -292,6 +295,8 @@ Reglages.MODULES = {
       options = {
         { cle = "swapGroupeActif", type = "case", libelle = L["Activer le swap layer en groupe"],
           info = L["Sur tes persos aussi : ils acceptent alors seuls l'invitation du main qui vient de partir swapper (15 min), et toujours celles des noms de leur liste de Marqueurs."] },
+        { cle = "swapCompteur", type = "case", libelle = L["Compteur de swaps (limite du jeu)"],
+          info = L["Sur Forever, le jeu limite les changements de couche à 10 par heure, l'heure partant de ton premier swap. À droite des boutons : tes swaps de l'heure (3/10), en orange quand il en reste peu, en rouge avec l'attente quand c'est plein. Compté par LayerSwap, par personnage."] },
         { cle = "swapButinLibre", type = "case", libelle = L["Butin en accès libre au regroupement"],
           info = L["Dès que tes persos ont rejoint le groupe après « Inviter la team », le butin passe en accès libre (tu dois être chef)."] },
     } },
@@ -322,6 +327,28 @@ Reglages.MODULES = {
         { cle = "vhTop", type = "choix", valeurs = { 5, 10, 20 }, noms = { "5", "10", "20" },
           libelle = L["Joueurs dans le classement"] },
     } },
+    { nom = "monnaies", titre = L["Monnaies"], interrupteur = "monnaiesActif", deplacer = true,
+      apercu = function(oui) if ns.Monnaies and ns.Monnaies.apercu then ns.Monnaies.apercu(oui) end end,
+      vitrine = function() if ns.Monnaies and ns.Monnaies.vitrine then return ns.Monnaies.vitrine() end end,
+      boutons = { { texte = L["Remettre le widget à sa place"], action = function() ns.Monnaies.recentrer() end } },
+      desc = L["Un petit widget déplaçable avec ton or et les monnaies que tu coches. Survole-le pour toutes tes monnaies."],
+      categories = {
+        { titre = "Widget", options = {
+            { cle = "monnaiesActif", type = "case", libelle = L["Afficher le widget"] },
+            { cle = "monnaiesSens", type = "choix", valeurs = { "colonne", "ligne" },
+              noms = { L["En colonne"], L["En ligne"] }, libelle = L["Disposition"] },
+            { cle = "monnaiesTaille", type = "curseur", min = 0.7, max = 1.6, pas = 0.1, libelle = L["Taille"] },
+            { cle = "monnaiesFond", type = "curseur", min = 0, max = 1, pas = 0.05, libelle = L["Opacité du fond"] },
+            { cle = "monnaiesIcones", type = "case", libelle = L["Icônes"] },
+            { cle = "monnaiesNoms", type = "case", libelle = L["Noms des monnaies"] },
+            { cle = "monnaiesZero", type = "case", libelle = L["Afficher les monnaies à 0"] },
+            { cle = "monnaiesOrFormat", type = "choix", valeurs = { "complet", "or" },
+              noms = { L["Or, argent, cuivre"], L["Or seulement"] }, libelle = L["Format de l'or"] },
+        } },
+        { titre = L["Monnaies"], options = {
+            { cle = "monnaieOr", type = "case", libelle = "|TInterface\\Icons\\INV_Misc_Coin_01:16:16:0:0|t " .. L["Or"] },
+        } },
+      } },
     { nom = "peche", titre = "Auto Fishing", interrupteur = "pecheActif", deplacer = true,
       boutons = { { texte = L["Nouvelle session"], action = function()
                       if not ns.Peche then return end
@@ -386,14 +413,34 @@ Reglages.MODULES = {
         { cle = "boostFPS", type = "case", libelle = L["Optimiser mes graphismes pour les FPS"],
           info = L["Ombres correctes, textures hautes, effets au sol gardés. Coupés ou baissés : distance de vue, détails du décor, herbes, eau, occlusion ambiante, effets de profondeur, contours, densité des sorts des autres, réverbération du son. Mêmes réglages en raid et donjon, image plus nette. Tes retouches ensuite restent."] },
     } },
-    { nom = "meteo", titre = L["Météo et brouillard"], interrupteur = "meteoActif",
-      desc = L["Retire la pluie, la neige, les tempêtes de sable et le brouillard : la vue reste dégagée et le jeu plus fluide. Coupe le module et tes réglages d'avant reviennent."],
-      options = {
-        { cle = "meteoActif", type = "case", libelle = L["Activer"] },
-        { cle = "sansMeteo", type = "case", libelle = L["Retirer la météo"],
-          info = L["Pluie, neige, tempêtes (weatherDensity 0)."] },
-        { cle = "sansBrouillard", type = "case", libelle = L["Retirer le brouillard"],
-          info = L["Le brouillard volumétrique (volumeFog 0)."] },
+    { nom = "meteo", titre = L["Météo et effets"], interrupteur = "meteoActif",
+      desc = L["Coche ce que tu veux couper, décoche pour le retrouver."],
+      boutons = { { texte = L["Créer la macro anti-brume"], action = function() ns.Graphismes.creerMacroBrouillard() end } },
+      categories = {
+        { titre = L["Couper : météo"], options = {
+            { cle = "meteoActif", type = "case", libelle = L["Activer"] },
+            { cle = "sansMeteo", type = "case", libelle = L["Pluie, neige et sable"],
+              info = L["Plus de gouttes ni de flocons. La couleur du ciel reste."] },
+            { cle = "sansSonMeteo", type = "case", libelle = L["Bruit de la pluie"],
+              info = L["Seulement quand il pleut. Les bruits de fond se taisent aussi, puis reviennent."] },
+            { cle = "sansBrouillard", type = "case", libelle = L["Brouillard (en partie)"],
+              info = L["Le jeu en garde une partie. Pour tout enlever : la macro anti-brume, en bas."] },
+        } },
+        { titre = L["Couper : image"], options = {
+            { cle = "fxRayons", type = "case", libelle = L["Rayons du soleil"] },
+            { cle = "fxHalo", type = "case", libelle = L["Halo lumineux"] },
+            { cle = "fxMort", type = "case", libelle = L["Écran gris de la mort"] },
+            { cle = "fxNether", type = "case", libelle = L["Voile d'invisibilité"] },
+            { cle = "fxSecousses", type = "case", libelle = L["Secousses de l'écran"] },
+            { cle = "fxFlash", type = "case", libelle = L["Flashs rouges au bord de l'écran"] },
+            { cle = "fxEmpreintes", type = "case", libelle = L["Traces de pas"] },
+        } },
+        { titre = L["Couper : sons"], options = {
+            { cle = "fxPas", type = "case", libelle = L["Bruit des pas"] },
+            { cle = "fxErreurs", type = "case", libelle = L["Phrases d'erreur"] },
+            { cle = "fxMusique", type = "case", libelle = L["Musique du jeu"] },
+            { cle = "fxEmotes", type = "case", libelle = L["Son des emotes"] },
+        } },
     } },
 }
 
@@ -403,7 +450,7 @@ Reglages.FAMILLES = {
     { cle = "auto", titre = L["Automatique"],
       modules = { "peche", "autoEquip", "tenues", "autoLoot", "marchand", "autoRangs", "autoTir" } },
     { cle = "sacs", titre = L["Sacs et équipement"], modules = { "poubelle", "menage", "usure" } },
-    { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "barreRep", "vols", "vh" } },
+    { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "barreRep", "vols", "vh", "monnaies" } },
     { cle = "jeu", titre = L["Jeu et groupe"], modules = { "softInteract", "marqueurs", "swapGroupe", "spyPing" } },
     { cle = "image", titre = L["Graphismes et ambiance"], modules = { "boostFPS", "meteo", "tsquid" } },
 }
@@ -440,6 +487,20 @@ for _, liste in ipairs({ Reglages.CATEGORIES, Reglages.MODULES }) do
     end
 end
 Reglages.option = function(cle) return options[cle] end
+
+-- Option ajoutée après le chargement (cases des monnaies du jeu, connues
+-- seulement à la connexion) : dans la carte n du module, avec son défaut.
+function Reglages.ajouterOption(nom, carte, o, defaut)
+    local m
+    for _, x in ipairs(Reglages.MODULES) do if x.nom == nom then m = x end end
+    if not m or options[o.cle] then return false end
+    local cat = m.categories and m.categories[carte]
+    if cat then cat.options[#cat.options + 1] = o end
+    m.options[#m.options + 1] = o
+    options[o.cle] = o
+    if Reglages.DEFAUTS[o.cle] == nil then Reglages.DEFAUTS[o.cle] = defaut end
+    return true
+end
 
 -- Module par son nom (« guide », « barreXP »…), nil s'il n'existe pas.
 function Reglages.module(nom)

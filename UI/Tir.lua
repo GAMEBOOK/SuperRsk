@@ -36,8 +36,11 @@ local arret                     -- début de la mesure en cours
 -- ShotWindow dessine sur la barre du jeu : en veille seulement si on l'utilise aussi.
 local shotWindow = false
 local function enVeille() return shotWindow and R("tirBarre") == "jeu" end
--- Aperçu (page du module) : cycles de tir simulés en boucle sur notre barre.
-local apercu, demo = false, nil   -- demo = { debut, duree }
+-- Aperçu (page du module) : cycles de tir simulés en boucle sur une COPIE de
+-- notre barre, montrée dans la bannière du menu ; la barre utilisée en jeu
+-- (la nôtre ou celle du jeu) n'est pas touchée.
+local apercu, demo = false, nil   -- demo = { debut, duree, fraction, dedans }
+local copie                       -- barre de la bannière (créée à la demande)
 
 local function secret(v) return issecretvalue and issecretvalue(v) end
 local function nombre(v) if not secret(v) and type(v) == "number" then return v end end
@@ -94,22 +97,22 @@ local function actif() return sort and not enVeille() and R("tirActif") end
 
 -- Notre barre : visible quand on tire (ou qu'un tir est en cours / attendu).
 local function visible()
-    if apercu then return propre ~= nil end
     if not (propre ~= nil and barre == propre and actif()) then return false end
     local mode = R("tirAffichage")
     return mode == "toujours" or (mode == "combat" and enCombat)
         or auto == true or debut ~= nil or attente ~= nil
 end
 
--- Secondes avant le prochain tir (« 1,5 »), si l'option est cochée.
-local function texteTemps()
-    if apercu and demo and R("tirTemps") then
-        local reste = math.max(0, demo.duree - (GetTime() - demo.debut))
-        return (("%.1f"):format(reste):gsub("%.", ","))
-    end
-    if not (R("tirTemps") and debut) then return nil end
-    local reste = math.max(0, duree - (GetTime() - debut))
+-- Secondes restantes d'un cycle (« 1,5 »).
+local function dixiemes(d, deb)
+    local reste = math.max(0, d - (GetTime() - deb))
     return (("%.1f"):format(reste):gsub("%.", ","))
+end
+
+-- Secondes avant le prochain tir, si l'option est cochée.
+local function texteTemps()
+    if not (R("tirTemps") and debut) then return nil end
+    return dixiemes(duree, debut)
 end
 
 local function majPropre()
@@ -126,12 +129,12 @@ local function remplir(f)
     majPropre()
 end
 
-local function creerPropre()
-    local T = ns.Theme
-    local f = CreateFrame("Frame", "SuperGuideBarreTir", UIParent)
+-- Notre barre (nom donné) ou sa copie pour l'aperçu (sans nom, non déplaçable).
+local function creerPropre(nom)
+    local f = CreateFrame("Frame", nom, UIParent)
     f:SetSize(R("tirLargeur"), 14)
     f:SetClampedToScreen(true)
-    ns.Deplacement.inscrire(f, L["Barre de tir"], "barreTir", { "CENTER", 0, -180 })
+    if nom then ns.Deplacement.inscrire(f, L["Barre de tir"], "barreTir", { "CENTER", 0, -180 }) end
     f:EnableMouse(false) -- seules les poignées du mode Déplacement la bougent
     local fond = f:CreateTexture(nil, "BACKGROUND")
     fond:SetAllPoints()
@@ -175,34 +178,47 @@ local function teinte(cle, theme)
     return ns.Theme.rgb(theme)
 end
 
-local function colorierRemplissage()
-    if not propre then return end
-    if signal() then propre.remplissage:SetVertexColor(teinte("tirCouleurSignal", "vert"))
-    else propre.remplissage:SetVertexColor(teinte("tirCouleurBarre", "accent")) end
+-- Remplissage de la barre f : couleur du signal ou couleur normale.
+local function colorier(f, sig)
+    if sig then f.remplissage:SetVertexColor(teinte("tirCouleurSignal", "vert"))
+    else f.remplissage:SetVertexColor(teinte("tirCouleurBarre", "accent")) end
 end
 
--- Taille, texture, couleur et contour de notre barre (réglages « Barre » et « Apparence »).
+local function colorierRemplissage()
+    if propre then colorier(propre, signal()) end
+end
+
+-- Taille, texture et contour d'une barre à nous (réglages « Barre » et « Apparence »).
+local function habillerCadre(f)
+    f:SetSize(R("tirLargeur"), R("tirHauteur"))
+    f.remplissage:SetTexture(ns.BarreXP.chemin(R("tirTexture")))
+    local nom = R("tirContour")
+    if nom == "aucun" then f.contour:Hide(); return end
+    local r, g, b = ns.BarreXP.couleurContour(nom)
+    for _, t in ipairs(f.contour.bords) do t:SetColorTexture(r, g, b, 1) end
+    f.contour:Show()
+end
+
 local function habillerPropre()
     if not propre then return end
-    propre:SetSize(R("tirLargeur"), R("tirHauteur"))
-    propre.remplissage:SetTexture(ns.BarreXP.chemin(R("tirTexture")))
+    habillerCadre(propre)
     colorierRemplissage()
-    local nom = R("tirContour")
-    if nom == "aucun" then propre.contour:Hide(); return end
-    local r, g, b = ns.BarreXP.couleurContour(nom)
-    for _, t in ipairs(propre.contour.bords) do t:SetColorTexture(r, g, b, 1) end
-    propre.contour:Show()
 end
 
-local function habiller()
-    if not zone then return end
+-- Couleur de la zone et de sa ligne ; plus franche quand on est dedans.
+local function teinterZone(z, li, fort)
     local c = R("tirCouleur")
     local r, g, b
     if c then r, g, b = c[1], c[2], c[3] else r, g, b = ns.Theme.rgb("rouge") end
     local a = R("tirOpacite")
-    if dedans and auto ~= false then a = math.min(1, a + 0.3) end
-    zone:SetColorTexture(r, g, b, a)
-    ligne:SetColorTexture(r, g, b, 0.95)
+    if fort then a = math.min(1, a + 0.3) end
+    z:SetColorTexture(r, g, b, a)
+    li:SetColorTexture(r, g, b, 0.95)
+end
+
+local function habiller()
+    if not zone then return end
+    teinterZone(zone, ligne, dedans and auto ~= false)
     colorierRemplissage()
 end
 
@@ -212,26 +228,28 @@ local function changerDedans(oui)
     habiller()
 end
 
+-- Pose la zone z et sa ligne li sur la barre b, pour un cycle de d secondes.
+local function placer(b, z, li, d)
+    local l = nombre(b:GetWidth())
+    if not d or not l or l <= 0 then z:Hide(); li:Hide(); return end
+    local x = calculerSeuil(d) / d * l
+    if x >= l then z:Hide(); li:Hide(); return end
+    z:ClearAllPoints()
+    z:SetPoint("TOPLEFT", b, "TOPLEFT", x, 0)
+    z:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", x, 0)
+    z:SetWidth(math.max(1, l - x))
+    z:Show()
+    li:ClearAllPoints()
+    li:SetPoint("TOP", b, "TOPLEFT", x, 0)
+    li:SetPoint("BOTTOM", b, "BOTTOMLEFT", x, 0)
+    li:SetWidth(2)
+    li:SetShown(x > 0)
+end
+
 local function poserZone()
     if not zone then return end
-    local d = (apercu and demo and demo.duree) or duree or vitesseArme()
-    local l = nombre(barre:GetWidth())
-    if not (actif() or apercu) or not d or not l or l <= 0 then
-        zone:Hide(); ligne:Hide()
-        return
-    end
-    local x = calculerSeuil(d) / d * l
-    if x >= l then zone:Hide(); ligne:Hide(); return end
-    zone:ClearAllPoints()
-    zone:SetPoint("TOPLEFT", barre, "TOPLEFT", x, 0)
-    zone:SetPoint("BOTTOMLEFT", barre, "BOTTOMLEFT", x, 0)
-    zone:SetWidth(math.max(1, l - x))
-    zone:Show()
-    ligne:ClearAllPoints()
-    ligne:SetPoint("TOP", barre, "TOPLEFT", x, 0)
-    ligne:SetPoint("BOTTOM", barre, "BOTTOMLEFT", x, 0)
-    ligne:SetWidth(2)
-    ligne:SetShown(x > 0)
+    if not actif() then zone:Hide(); ligne:Hide(); return end
+    placer(barre, zone, ligne, duree or vitesseArme())
 end
 
 local function inscrire(e, unite)
@@ -244,14 +262,14 @@ local function inscrire(e, unite)
 end
 
 -- Pose la zone sur la barre choisie ; false si celle du jeu n'est pas là.
-local function accrocher(forcerPropre)
+local function accrocher()
     if barre then return true end
-    if R("tirBarre") == "jeu" and not forcerPropre then
+    if R("tirBarre") == "jeu" then
         local f = _G.SwingTimerRangedFrame
         if not (f and f.StatusBar) then return false end
         barre = f.StatusBar
     else
-        if not propre then propre = creerPropre(); habillerPropre() end
+        if not propre then propre = creerPropre("SuperGuideBarreTir"); habillerPropre() end
         barre = propre
     end
     -- Au-dessus du remplissage (ARTWORK 0 chez le jeu, BORDER chez nous).
@@ -425,43 +443,69 @@ function Tir.surEvenement(e, ...)
     if actif() and REACTIONS[e] then REACTIONS[e](...) end
 end
 
--- Aperçu en direct : notre barre, cycles de tir en boucle à la vitesse de
+-- Aperçu en direct : la copie, cycles de tir en boucle à la vitesse de
 -- l'arme (2,8 s sans arme), pause courte après chaque tir où la zone pulse.
 Tir.PAUSE_APERCU = 0.6
+
+local function placerCopie()
+    if copie and demo then placer(copie, copie.zone, copie.ligne, demo.duree) end
+end
+
+-- Dessine la copie d'après l'état de la démonstration (cachée hors aperçu).
+local function majCopie()
+    if not copie then return end
+    if not (apercu and demo) then copie:Hide(); return end
+    local l = nombre(copie:GetWidth()) or R("tirLargeur")
+    copie.remplissage:SetWidth(math.max(1, demo.fraction * l))
+    copie.remplissage:SetShown(demo.fraction > 0)
+    colorier(copie, R("tirSignal") and demo.dedans)
+    teinterZone(copie.zone, copie.ligne, demo.dedans)
+    copie.temps:SetText(R("tirTemps") and dixiemes(demo.duree, demo.debut) or "")
+    copie:Show()
+end
 
 local function pasApercu()
     local now = GetTime()
     local t = now - demo.debut
     if t < demo.duree then
-        remplir(t / demo.duree)
-        changerDedans(t >= calculerSeuil(demo.duree))
-        if zone then zone:SetAlpha(1) end
+        demo.fraction = t / demo.duree
+        demo.dedans = t >= calculerSeuil(demo.duree)
+        copie.zone:SetAlpha(1)
     elseif t < demo.duree + Tir.PAUSE_APERCU then
-        remplir(1)
-        changerDedans(true)
-        if zone and R("tirPulsation") then zone:SetAlpha(0.6 + 0.4 * math.cos((t - demo.duree) * math.pi * 2.5)) end
+        demo.fraction = 1
+        demo.dedans = true
+        if R("tirPulsation") then copie.zone:SetAlpha(0.6 + 0.4 * math.cos((t - demo.duree) * math.pi * 2.5)) end
     else
         demo.debut = now
         demo.duree = vitesseArme() or 2.8
-        poserZone()
+        placerCopie()
     end
 end
 
--- Une image : la barre reste visible même si un calcul échoue (erreur notée une fois).
+-- Une image : la copie reste visible même si un calcul échoue (erreur notée une fois).
 local erreurApercu
 local function animerApercu()
-    if not (apercu and demo and propre) then return end
+    if not (apercu and demo and copie) then return end
     local ok, err = pcall(pasApercu)
     if not ok and not erreurApercu then
         erreurApercu = err
         if ns.Jeu and ns.Jeu.message then ns.Jeu.message("Aperçu du tir : " .. tostring(err)) end
     end
-    majPropre()
+    majCopie()
 end
 
+-- Copie montrée dans la bannière d'aperçu du menu : un cadre à part, jamais
+-- la barre utilisée en jeu.
 function Tir.vitrine()
-    if not propre then propre = creerPropre(); habillerPropre() end
-    return propre, "barreTir"
+    if not copie then
+        copie = creerPropre(nil)
+        copie.zone = copie:CreateTexture(nil, "ARTWORK", nil, 6)
+        copie.ligne = copie:CreateTexture(nil, "ARTWORK", nil, 7)
+        copie.zone:Hide(); copie.ligne:Hide()
+        if copie.HookScript then copie:HookScript("OnSizeChanged", placerCopie) end
+        habillerCadre(copie)
+    end
+    return copie, "barreTir", true
 end
 
 function Tir.apercu(oui)
@@ -470,27 +514,18 @@ function Tir.apercu(oui)
     apercu = oui
     if oui then
         Tir.vitrine()
-        if barre ~= propre then
-            if zone then zone:Hide(); ligne:Hide() end
-            barre, zone, ligne = nil, nil, nil
-            accrocher(true)
-        end
-        demo = { debut = GetTime(), duree = vitesseArme() or 2.8 }
-        pcall(poserZone)
-        remplir(0.35)             -- visible tout de suite, avant la première image
-        propre:Show()
-        propre:SetScript("OnUpdate", animerApercu)
+        -- 0,35 : visible tout de suite, avant la première image.
+        demo = { debut = GetTime(), duree = vitesseArme() or 2.8, fraction = 0.35, dedans = false }
+        pcall(placerCopie)
+        majCopie()
+        copie:SetScript("OnUpdate", animerApercu)
     else
         demo = nil
-        propre:SetScript("OnUpdate", nil)
-        if zone then zone:SetAlpha(1) end
-        remplir(0)
-        changerDedans(false)
-        -- Retour à la barre choisie (la nôtre ou celle du jeu).
-        if zone then zone:Hide(); ligne:Hide() end
-        barre, zone, ligne = nil, nil, nil
-        if sort then accrocher() end
-        majPropre()
+        if copie then
+            copie:SetScript("OnUpdate", nil)
+            copie.zone:SetAlpha(1)
+            copie:Hide()
+        end
     end
 end
 
@@ -501,7 +536,10 @@ function Tir.etat()
 end
 
 function Tir.appliquer(cle)
-    if not cle:find("^tir") or not sort then return end
+    if not cle:find("^tir") then return end
+    -- La copie de l'aperçu suit les réglages, même sans tir pour cette classe.
+    if copie then habillerCadre(copie); pcall(placerCopie); majCopie() end
+    if not sort then return end
     if cle == "tirBarre" then
         changerBarre()
         if enVeille() then

@@ -160,9 +160,13 @@ local function demarrer()
                      "UPDATE_MOUSEOVER_UNIT", "PLAYER_TARGET_CHANGED", "NAME_PLATE_UNIT_ADDED" }) do inscrire(e) end
     ns.Reglages.ecouter(ns.PingSpy.appliquer)
 
+    lancer(ns.Graphismes.rendreBrume)
     lancer(ns.Graphismes.synchroniser)
     ns.Reglages.ecouter(ns.Graphismes.appliquer)
     inscrire("CVAR_UPDATE")
+    inscrire("WEATHER_CHANGED")
+    -- À la connexion, la météo arrive après le chargement.
+    for _, d in ipairs({ 5, 15 }) do ns.Jeu.plusTard(d, ns.Graphismes.surMeteo) end
 
     lancer(ns.Vols.creer)
     ns.Reglages.ecouter(ns.Vols.appliquer)
@@ -183,6 +187,9 @@ local function demarrer()
     lancer(ns.Poubelle.creer)
     for _, e in ipairs(ns.Usure.EVENEMENTS) do inscrire(e) end
     ns.Reglages.ecouter(ns.Usure.appliquer)
+    lancer(ns.Monnaies.creer)
+    for _, e in ipairs(ns.Monnaies.EVENEMENTS) do inscrire(e) end
+    ns.Reglages.ecouter(ns.Monnaies.appliquer)
 
     ns.Reglages.ecouter(ns.rappelerDependance)
     lancer(function() ns.signalerDependances(SuperGuideDB) end)
@@ -193,12 +200,15 @@ end
 
 local USURE = {}
 for _, e in ipairs(ns.Usure.EVENEMENTS) do USURE[e] = true end
+local MONNAIES = {}
+for _, e in ipairs(ns.Monnaies.EVENEMENTS) do MONNAIES[e] = true end
 
 evenements:SetScript("OnEvent", function(_, e, ...)
     if VERIFIER[e] then demanderVerif() end
     -- Le niveau n'est pas toujours à jour pendant l'événement : on revérifie.
     if e == "PLAYER_LEVEL_UP" then C_Timer.After(1, demanderVerif) end
     if USURE[e] then ns.Usure.verifier() end
+    if MONNAIES[e] then ns.Monnaies.surEvenement() end
     if ns.Marchand.evenements[e] then ns.Marchand.evenements[e](...); return end
     if BARRE_REP[e] and ns.BarreRep.maj then
         ns.BarreRep.surEvenement(e, ...)
@@ -213,6 +223,12 @@ evenements:SetScript("OnEvent", function(_, e, ...)
     if e == "ITEM_DATA_LOAD_RESULT" then
         local id, ok = ...
         if ok and ns.Jeu.chargementAttendu(id) then demanderVerif() end
+    end
+    if e == "WEATHER_CHANGED" then
+        -- Relu un peu après : le jeu peut prévenir avant d'avoir mis à jour la météo.
+        ns.Graphismes.surMeteo()
+        ns.Jeu.plusTard(2, ns.Graphismes.surMeteo)
+        return
     end
     if e == "CVAR_UPDATE" then
         ns.Graphismes.surCvar((...))
@@ -312,6 +328,8 @@ SlashCmdList.SUPERGUIDE = function(arg)
         ns.Bienvenue.ouvrir()
     elseif arg == "nouveautes" or arg == "nouveautés" or arg == "news" then
         ns.Nouveautes.ouvrir()
+    elseif arg == "fog" or arg == "brume" or arg == "brouillard" then
+        ns.Graphismes.basculerBrume()
     elseif arg == "photo" then
         ns.Photo.basculer()
     elseif arg == "dr" then
