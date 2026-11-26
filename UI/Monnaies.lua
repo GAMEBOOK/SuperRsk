@@ -21,15 +21,31 @@ local function infobulle(self)
     GameTooltip:AddLine(L["Monnaies"], 1, 0.82, 0)
     -- Chaque ligne a son icône (même taille, bords rognés) : noms alignés.
     local function icone(chemin) return "|T" .. chemin .. ":14:14:0:0:64:64:5:59:5:59|t " end
-    GameTooltip:AddDoubleLine(icone(Monnaies.ICONE_OR) .. L["Or"], ns.Jeu.texteArgent(ns.Jeu.argent() or 0), 1, 1, 1, 1, 1, 1)
+    -- Nom en bleu : affichée dans le widget.
+    local function nomR(affichee) if affichee then return 0.31, 0.85, 1 end return 1, 1, 1 end
+    local r, g, b = nomR(R("monnaieOr") ~= false)
+    GameTooltip:AddDoubleLine(icone(Monnaies.ICONE_OR) .. L["Or"], ns.Jeu.texteArgent(ns.Jeu.argent() or 0), r, g, b, 1, 1, 1)
+    -- D'abord ce que tu possèdes (plus gros montant en haut), puis les
+    -- monnaies à 0 en gris, après un espace.
+    local avec, sans = {}, {}
     for _, c in ipairs(Monnaies.liste()) do
         local frais = Monnaies.info(c.id) or c
-        -- À 0 : toute la ligne en gris, nom et montant.
-        local v = frais.quantite == 0 and 0.55 or 1
-        GameTooltip:AddDoubleLine(icone(c.icone or Monnaies.ICONE_VIDE) .. c.nom, Monnaies.nombre(frais.quantite), v, v, v, v, v, v)
+        local e = { c = c, q = frais.quantite }
+        if e.q > 0 then avec[#avec + 1] = e else sans[#sans + 1] = e end
+    end
+    table.sort(avec, function(x, y) return x.q > y.q end)
+    for _, e in ipairs(avec) do
+        r, g, b = nomR(R(Monnaies.cle(e.c.id)))
+        GameTooltip:AddDoubleLine(icone(e.c.icone or Monnaies.ICONE_VIDE) .. e.c.nom, Monnaies.nombre(e.q), r, g, b, 1, 1, 1)
+    end
+    if #sans > 0 then GameTooltip:AddLine(" ") end
+    for _, e in ipairs(sans) do
+        -- Gris ; bleu atténué si elle est affichée.
+        if R(Monnaies.cle(e.c.id)) then r, g, b = 0.2, 0.5, 0.6 else r, g, b = 0.5, 0.5, 0.5 end
+        GameTooltip:AddDoubleLine(icone(e.c.icone or Monnaies.ICONE_VIDE) .. e.c.nom, "0", r, g, b, 0.5, 0.5, 0.5)
     end
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L["Choisis les monnaies affichées dans /sg > Monnaies."], 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L["Clic : choisir les monnaies affichées."], 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
 end
 
@@ -178,6 +194,12 @@ function Monnaies.creer()
     Monnaies.inscrireCases()
     widget = construire("SuperGuideMonnaies")
     widget:EnableMouse(true)
+    -- Clic : la page du module (choisir les monnaies, la disposition...).
+    widget:SetScript("OnMouseUp", function(_, bouton)
+        if bouton ~= "LeftButton" or (ns.Deplacement and ns.Deplacement.ouvert and ns.Deplacement.ouvert()) then return end
+        GameTooltip:Hide()
+        if ns.Menu then ns.Menu.ouvrir("module:monnaies") end
+    end)
     widget:SetScript("OnEnter", infobulle)
     widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
     if ns.Deplacement then

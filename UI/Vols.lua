@@ -11,6 +11,13 @@ local function R(cle) return ns.Reglages.get(cle) end
 local MODELE = "SuperGuideVolPinTemplate" -- UI/Vols.xml
 local ICONE = "Interface\\Minimap\\Tracking\\FlightMaster"
 local CONNU, INCONNU = { 1, 1, 1 }, { 1, 0.6, 0.15 } -- blanc = couleurs d'origine
+-- Tours JcJ, bateaux, zeppelins : nos icônes (Media/Icones), sans vol à apprendre.
+local GENRE = { 1, 1, 1 } -- couleurs dans l'image
+local function texteGenre(g)
+    if g == "tour" then return L["Tour JcJ : pas de maître de vol à découvrir."] end
+    if g == "bateau" then return L["Bateau : pas de maître de vol à découvrir."] end
+    return L["Zeppelin : pas de maître de vol à découvrir."]
+end
 
 local fournisseur
 
@@ -39,8 +46,13 @@ end
 function Icone:OnAcquired(p)
     self.point = p
     self:SetPosition(p.x, p.y)
-    self.Icone:SetTexture(ICONE)
-    self.Icone:SetVertexColor(unpack(p.connu and CONNU or INCONNU))
+    if p.genre then
+        self.Icone:SetTexture(ns.Theme.icone(p.genre))
+        self.Icone:SetVertexColor(unpack(GENRE))
+    else
+        self.Icone:SetTexture(ICONE)
+        self.Icone:SetVertexColor(unpack(p.connu and CONNU or INCONNU))
+    end
 end
 
 function Icone:OnMouseEnter()
@@ -49,6 +61,11 @@ function Icone:OnMouseEnter()
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(p.nom or "?")
     local c = p.connu and CONNU or INCONNU
+    if p.genre then
+        GameTooltip:AddLine(texteGenre(p.genre), 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+        return
+    end
     GameTooltip:AddLine(p.connu and L["Point de vol connu"] or L["Point de vol à découvrir"], c[1], c[2], c[3])
     GameTooltip:Show()
 end

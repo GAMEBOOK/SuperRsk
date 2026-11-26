@@ -16,6 +16,11 @@ local function R(cle) return ns.Reglages.get(cle) end
 Monnaies.MAX_ID = 5000
 Monnaies.ICONE_OR = "Interface\\Icons\\INV_Misc_Coin_01"
 Monnaies.ICONE_VIDE = "Interface\\Icons\\INV_Misc_QuestionMark"
+-- Monnaies sans icône dans le jeu : Renom (rang JcJ), Renom (rang d'héritage).
+Monnaies.ICONES = {
+    [3473] = "Interface\\Icons\\INV_BannerPVP_02",
+    [3485] = "Interface\\Icons\\Spell_Holy_ChampionsBond",
+}
 Monnaies.EVENEMENTS = { "PLAYER_MONEY", "CURRENCY_DISPLAY_UPDATE", "HONOR_CURRENCY_UPDATE", "PLAYER_ENTERING_WORLD" }
 
 -- Réglage de la case d'une monnaie.
@@ -27,10 +32,10 @@ function Monnaies.info(id)
     if not api then return nil end
     local ok, c = pcall(api, id)
     if not ok or type(c) ~= "table" or type(c.name) ~= "string" or c.name == "" then return nil end
-    -- Sans icône (le jeu rend 0 pour les renoms) : point d'interrogation,
-    -- pour garder les noms alignés.
+    -- Sans icône (le jeu rend 0 pour les renoms) : la nôtre, choisie par
+    -- l'ID ; sinon un point d'interrogation, pour garder les noms alignés.
     local icone = c.iconFileID
-    if not icone or icone == 0 or icone == "" then icone = Monnaies.ICONE_VIDE end
+    if not icone or icone == 0 or icone == "" then icone = Monnaies.ICONES[id] or Monnaies.ICONE_VIDE end
     return { id = id, nom = c.name, icone = icone, quantite = tonumber(c.quantity) or 0 }
 end
 

@@ -14,17 +14,35 @@ ns.Vols = Vols
 function Vols.points(api, carte, connus, avecConnus)
     local l = {}
     if not (api and carte) then return l end
+    local data = api.DATA and api.DATA.Nodes
     for id in api.IterateNodes() do
         local connu = connus[id] == true
-        if (avecConnus or not connu) and api.IsNodeVisible(id) ~= false then
+        local genre = Vols.GENRES[id]
+        if (avecConnus or not connu or genre) and api.IsNodeVisible(id) ~= false
+            and (connu or genre or Vols.apprenable(data and data[id])) then
             local pos = api.GetNodeMapPosition(id, carte)
             if pos then
-                l[#l + 1] = { id = id, x = pos.x, y = pos.y, nom = api.GetNodeName(id), connu = connu }
+                l[#l + 1] = { id = id, x = pos.x, y = pos.y, nom = api.GetNodeName(id), connu = connu, genre = genre }
             end
         end
     end
     return l
 end
+
+-- Un nœud sans bit de personnage ne s'apprend chez aucun maître de vol :
+-- tours JcJ des Maleterres, bateaux et zeppelins, points génériques. Pas
+-- d'icône de vol pour eux (sauf si le personnage le connaît déjà).
+function Vols.apprenable(noeud)
+    return not noeud or noeud.characterBitNumber ~= 0
+end
+
+-- Ceux-là ont leur propre icône (choisis par ID, placés au bon endroit) :
+-- tours JcJ des Maleterres de l'Est, quais des bateaux et des zeppelins.
+Vols.GENRES = {
+    [84] = "tour", [85] = "tour", [86] = "tour", [87] = "tour",
+    [46] = "bateau", [54] = "bateau",
+    [35] = "zeppelin", [47] = "zeppelin",
+}
 
 -- Carte d'un maître de vol (C_TaxiMap.GetAllTaxiNodes) : tout nœud qui n'est
 -- pas « injoignable » est connu de ce personnage.
