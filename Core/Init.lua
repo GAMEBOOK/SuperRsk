@@ -190,6 +190,8 @@ local function demarrer()
     lancer(ns.Monnaies.creer)
     for _, e in ipairs(ns.Monnaies.EVENEMENTS) do inscrire(e) end
     ns.Reglages.ecouter(ns.Monnaies.appliquer)
+    lancer(ns.Fabrication.creer)
+    ns.Reglages.ecouter(ns.Fabrication.appliquer)
 
     ns.Reglages.ecouter(ns.rappelerDependance)
     lancer(function() ns.signalerDependances(SuperGuideDB) end)

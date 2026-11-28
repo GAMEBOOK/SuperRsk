@@ -473,6 +473,10 @@ end
 function ListeButin.creer()
     vraie = construire("SuperGuideListeButin", 5 * (HAUTEUR + ECART), MAX, true)
     ns.Deplacement.inscrire(vraie.ancre, L["Butin ramassé"], "butin", { "CENTER", 400, 200 })
+    -- L'inscription rend le cadre glissable donc cliquable : ici il est
+    -- invisible (5 lignes de haut), il mangerait les clics même vide. On le
+    -- bouge par le mode Déplacer ; seules les lignes affichées captent la souris.
+    vraie.ancre:EnableMouse(false)
 
     evenements = CreateFrame("Frame")
     evenements:SetScript("OnEvent", function(_, e, ...) ListeButin.surEvenement(e, ...) end)

@@ -35,6 +35,7 @@ local PAGES = {
     { "spyPing", "Spy Ping", "Spot and ping enemies for your group." },
     { "vh", "Honorable Kills", "Your honorable kills and your guild's ranking." },
     { "monnaies", "Currencies", "Your gold and the currencies you tick, anywhere on screen." },
+    { "fabrication", "Crafting", "One bar for a whole batch of crafts, with the time left." },
     { "boostFPS", "Boost FPS", "More FPS and a sharper picture, in one click." },
     { "meteo", "Weather and Effects", "No raindrops or snow, less fog." },
     { "tsquid", "Tsquid Area", "A lightsaber sound on critical hits." },

@@ -24,6 +24,9 @@ end
 
 -- { version, nom, texte, cle (réglage à cocher, facultatif), voir (facultatif) }
 Nouveautes.LISTE = {
+    { version = "1.0.25", nom = L["Fabrication : une barre pour toute la série"], cle = "fabActif",
+      texte = L["Tu fabriques 10 objets d'un coup ? Une seule barre : le temps total restant, combien sont faits, un repère par objet."],
+      voir = ouvrirMenu("module:fabrication") },
     { version = "1.0.23", nom = L["Swap layer : combien de swaps il te reste"], cle = "swapCompteur",
       texte = L["Le jeu limite les changements de couche à 10 par heure. À côté des boutons du swap : tes swaps de l'heure, et l'attente quand c'est plein."],
       voir = ouvrirMenu("module:swapGroupe") },

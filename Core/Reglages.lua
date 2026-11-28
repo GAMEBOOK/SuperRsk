@@ -35,6 +35,8 @@ Reglages.DEFAUTS = {
     vhActif = true, vhGuilde = true, vhTop = 10, vhMonde = true,
     monnaiesActif = false, monnaieOr = true, monnaiesSens = "colonne", monnaiesTaille = 1, monnaiesFond = 0.92,
     monnaiesIcones = true, monnaiesNoms = false, monnaiesZero = true, monnaiesOrFormat = "complet",
+    fabActif = false, fabBarreNormale = false, fabTaille = 1, fabFond = 0.9, fabTexture = "d1", fabIcone = true,
+    fabSon = false, fabTitre = false,
     tsquidActif = false, tsquidCritSon = true, tsquidCanal = "Master",
     softInteract = true,
     pecheActif = true, pecheTouche = "SPACE", pecheTenueTouche = "", pecheSortir = true, pecheAppat = true, pecheWidget = true,
@@ -349,6 +351,28 @@ Reglages.MODULES = {
             { cle = "monnaieOr", type = "case", libelle = "|TInterface\\Icons\\INV_Misc_Coin_01:16:16:0:0|t " .. L["Or"] },
         } },
       } },
+    { nom = "fabrication", titre = L["Fabrication"], interrupteur = "fabActif", deplacer = true,
+      apercu = function(oui) if ns.Fabrication and ns.Fabrication.apercu then ns.Fabrication.apercu(oui) end end,
+      vitrine = function() if ns.Fabrication and ns.Fabrication.vitrine then return ns.Fabrication.vitrine() end end,
+      boutons = { { texte = L["Remettre la barre à sa place"], action = function() ns.Fabrication.recentrer() end } },
+      desc = L["Une barre pour toute une série d'objets fabriqués : le temps total restant, combien sont faits, un repère par objet."],
+      categories = {
+        { titre = L["Barre"], options = {
+            { cle = "fabActif", type = "case", libelle = L["Barre de fabrication en série"],
+              info = L["Lance une série de 2 objets ou plus depuis la fenêtre de métier (Créer 10, Créer tout) : la barre apparaît et suit la série jusqu'au bout."] },
+            { cle = "fabBarreNormale", type = "case", libelle = L["Garder la barre d'incantation normale"] },
+            { cle = "fabTaille", type = "curseur", min = 0.6, max = 1.6, pas = 0.1, libelle = L["Taille"] },
+            { cle = "fabFond", type = "curseur", min = 0, max = 1, pas = 0.05, libelle = L["Opacité du fond"] },
+            { cle = "fabTexture", type = "texture", libelle = L["Texture"],
+              info = L["Les textures de barre de tes autres addons (SharedMedia…) sont proposées aussi."],
+              liste = function() return ns.BarreXP.textures() end },
+            { cle = "fabIcone", type = "case", libelle = L["Icône de la recette"] },
+        } },
+        { titre = L["En plus"], options = {
+            { cle = "fabSon", type = "case", libelle = L["Son discret à la fin de la série"] },
+            { cle = "fabTitre", type = "case", libelle = L["Temps restant dans le titre de la fenêtre de métier"] },
+        } },
+      } },
     { nom = "peche", titre = "Auto Fishing", interrupteur = "pecheActif", deplacer = true,
       boutons = { { texte = L["Nouvelle session"], action = function()
                       if not ns.Peche then return end
@@ -450,7 +474,7 @@ Reglages.FAMILLES = {
     { cle = "auto", titre = L["Automatique"],
       modules = { "peche", "autoEquip", "tenues", "autoLoot", "marchand", "autoRangs", "autoTir" } },
     { cle = "sacs", titre = L["Sacs et équipement"], modules = { "poubelle", "menage", "usure" } },
-    { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "barreRep", "vols", "vh", "monnaies" } },
+    { cle = "affichage", titre = L["Affichage"], modules = { "barreXP", "barreRep", "vols", "vh", "monnaies", "fabrication" } },
     { cle = "jeu", titre = L["Jeu et groupe"], modules = { "softInteract", "marqueurs", "swapGroupe", "spyPing" } },
     { cle = "image", titre = L["Graphismes et ambiance"], modules = { "boostFPS", "meteo", "tsquid" } },
 }

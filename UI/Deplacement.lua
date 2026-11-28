@@ -305,6 +305,7 @@ function Deplacement.ouvert() return actif end
 Deplacement.ALLUME = {
     barreXP = "barreXP", barreRep = "barreRep", butin = "butinListe", swap = "swapGroupeActif", poubelle = "butinPoubelle",
     proposition = "proposerEquipement", barreTir = "tirActif", usure = "usureActif", vh = "vhActif", monnaies = "monnaiesActif",
+    fabrication = "fabActif",
 }
 
 function Deplacement.visible(cle)
